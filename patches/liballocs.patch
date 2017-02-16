@@ -1,0 +1,137 @@
+From 533b790930f51127523d186e68641dec40c061ad Mon Sep 17 00:00:00 2001
+From: Richard Tynan <richard@tynan.me>
+Date: Thu, 16 Feb 2017 01:37:32 +0000
+Subject: [PATCH 1/4] Removed linuxism in Makefile.am
+
+---
+ Makefile.am | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index c12b321..c2a62ac 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -7,7 +7,7 @@ AM_CXXFLAGS = -std=c++11 -ggdb -fkeep-inline-functions -O2 -Wall -Wno-deprecated
+ 
+ AM_CFLAGS = -Wall -std=gnu99 -ggdb -O3 -flto -Iinclude -fPIC -Wp,-w
+ 
+-AM_LDFLAGS = -Wl,--no-as-needed -lstdc++ -lm -lboost_regex $(DWARFIDL_LIBS) $(LIBCXXGEN_LIBS) $(LIBDWARFPP_LIBS) $(LIBSRK31CXX_LIBS) $(LIBCXXFILENO_LIBS) -ldl
++AM_LDFLAGS = -Wl,--no-as-needed -lstdc++ -lm -lboost_regex $(DWARFIDL_LIBS) $(LIBCXXGEN_LIBS) $(LIBDWARFPP_LIBS) $(LIBSRK31CXX_LIBS) $(LIBCXXFILENO_LIBS)
+ 
+ extra_DIST = liballocs.pc.in
+ pkgconfigdir = $(libdir)/pkgconfig
+-- 
+2.9.0
+
+
+From 7550da1ea788f1de648a141dd21dcb3ea2929ebc Mon Sep 17 00:00:00 2001
+From: Richard Tynan <richard@tynan.me>
+Date: Thu, 16 Feb 2017 01:38:06 +0000
+Subject: [PATCH 2/4] Removed linuxism in used-types-funcs.sh
+
+---
+ tools/used-types-funcs.sh | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/tools/used-types-funcs.sh b/tools/used-types-funcs.sh
+index 2dbc327..c3ed8e7 100755
+--- a/tools/used-types-funcs.sh
++++ b/tools/used-types-funcs.sh
+@@ -26,7 +26,9 @@ OBJCOPY=${OBJCOPY:-$(which objcopy)}
+ compile () {
+    src="$1"
+    dest="$2"
+-   asm="$( mktemp --suffix=.s )"
++   asm="$( mktemp )"
++   asm="$asm.s"
++   touch $asm
+    ${CC} -S -x c -o "$asm" "$src" && \
+    ${CC} -c -o "$dest" "$asm" && \
+    echo "Compiler generated $dest" 1>&2
+-- 
+2.9.0
+
+
+From 05c25fba38ab1464e432fe94a9e92365aff7de40 Mon Sep 17 00:00:00 2001
+From: Richard Tynan <richard@tynan.me>
+Date: Thu, 16 Feb 2017 01:39:03 +0000
+Subject: [PATCH 3/4] Added blacklist in main of allocscompilerwrapper. Should
+ probably merge other blacklist in crunchcc to here.
+
+---
+ tools/allocscompilerwrapper.py | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/tools/allocscompilerwrapper.py b/tools/allocscompilerwrapper.py
+index 462a13c..776090c 100644
+--- a/tools/allocscompilerwrapper.py
++++ b/tools/allocscompilerwrapper.py
+@@ -239,6 +239,24 @@ class AllocsCompilerWrapper(CompilerWrapper):
+         else:
+             self.debugMsg("We are not a link command\n")
+ 
++        # rpt
++        blacklist = [
++            # Hack used by FreeBSD kernel, contains nothing.
++            'hack.c',
++        ]
++        self.debugMsg("trying overall blacklist" + str(sourceInputFiles) + '\n')
++        anyblacklisted = False
++        for blsource in blacklist:
++            for source in sourceInputFiles:
++                anyblacklisted |= source.endswith(blsource)
++        if anyblacklisted:
++            self.debugMsg('Overall blacklist, so calling compiler straight\n')
++            self.debugMsg(str(sourceInputFiles))
++            self.debugMsg(str(sys.argv[1:]))
++            ret = self.runUnderlyingCompiler(sourceInputFiles, sys.argv[1:])
++            return ret
++
++
+         # If we're a linker command, then we have to handle allocation functions
+         # specially.
+         # Each allocation function, e.g. xmalloc, is linked with --wrap.
+@@ -516,7 +534,6 @@ class AllocsCompilerWrapper(CompilerWrapper):
+         # We did succeed, so we need to fix up the output binary's 
+         # __uniqtype references to the actual binary-compatible type
+         # definitions which the compiler generated.
+-
+         if not isLinkCommand:
+             if not self.commandStopsBeforeObjectOutput():
+                 if outputFile:
+-- 
+2.9.0
+
+
+From 5ff15f9f8e541363cc5869a46be58b4f28b511c8 Mon Sep 17 00:00:00 2001
+From: Richard Tynan <richard@tynan.me>
+Date: Thu, 16 Feb 2017 01:39:49 +0000
+Subject: [PATCH 4/4] link-used-types to not perform used-types as we're using
+ dumptypes instead, and it's causing errors.
+
+---
+ tools/lang/c/bin/link-used-types | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/tools/lang/c/bin/link-used-types b/tools/lang/c/bin/link-used-types
+index 6bb591a..1263ff5 100755
+--- a/tools/lang/c/bin/link-used-types
++++ b/tools/lang/c/bin/link-used-types
+@@ -40,11 +40,13 @@ sed -r 's/[[:blank:]]*[Uw][[:blank:]]*$//' | grep __uniqtype__ )"
+     fi
+ }
+ 
++   # ${USEDTYPES} "$objfile" > "$usedtypes_src" && \
++   # rpt
+ echo ${USEDTYPES} "$objfile" 1>&2 # for debugging
+ (  objcopy_and_redefine_c_names "$objfile" && \
+    echo "Successfully did objcopy_and_redefine_c_names" 1>&2 && \
+    echo ${USEDTYPES} "$objfile" 1>&2 && \
+-   ${USEDTYPES} "$objfile" > "$usedtypes_src" && \
++   touch "$usedtypes_src" && \
+    echo "Successfully did usedtypes" 1>&2 && \
+    compile "$usedtypes_src" "$usedtypes_obj" && \
+    echo "Successfully did compile" 1>&2 && \
+-- 
+2.9.0
+
