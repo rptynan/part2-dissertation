@@ -1,0 +1,14 @@
+Index: sys/conf/newvers.sh
+===================================================================
+--- sys/conf/newvers.sh	(revision 313906)
++++ sys/conf/newvers.sh	(working copy)
+@@ -97,7 +97,8 @@
+ 	t=`date`
+ fi
+ i=`${MAKE:-make} -V KERN_IDENT`
+-compiler_v=$($(${MAKE:-make} -V CC) -v 2>&1 | grep 'version')
++# fixes to be able to deal with the newline present in gcc's version output
++compiler_v=$($(${MAKE:-make} -V CC) -v 2>&1 | grep 'version' | tr -d '\n')
+ 
+ for dir in /usr/bin /usr/local/bin; do
+ 	if [ ! -z "${svnversion}" ] ; then
