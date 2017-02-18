@@ -7,3 +7,10 @@ stored here as patches to keep them centralised.
   crunchcc as an argument to choose the compiler.
 * **envs.sh** - source this (`. path/to/envs.sh`) to get environmental
   variables required by liballocs and the dependencies.
+
+### conf
+* **CRUNCHED** - kernel config with various options I needed added in. Should
+  be linked like so: `ln -s
+  /usr/local/src/part2-dissertation-code/configs/CRUNCHED
+  /sys/amd64/conf/CRUNCHED`
+

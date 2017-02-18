@@ -1,4 +1,15 @@
 #!/usr/local/bin/bash
+#
+
+if [ -z "$1" ]; then
+    echo "Usage: ./docrunchcc.sh <compiler> [<disable KERNFAST>]:"
+    echo "<compiler> can be either gcc or crunchcc"
+    echo "<disable KERNFAST> can be anything, if present it will cause KERNFAST
+          to not be used."
+fi
+
+kernfast_option=""
+[ -z "$2" ] && kernfast_option="-DKERNFAST"
 
 compile_with_crunchcc(){
     DEBUG_CC=1 \
@@ -9,7 +20,7 @@ compile_with_crunchcc(){
     CPPFLAGS='' CXXFLAGS='' LDFLAGS='' \
     WITHOUT_FORMAT_EXTENSIONS=no \
     /usr/bin/time \
-    make buildkernel -DKERNFAST KERNCONF=LIBCRUNCHTEST \
+    make buildkernel $kernfast_option KERNCONF=CRUNCHED \
     2> ~/errorlog | tee ~/log
     # -d A \
     # ;
@@ -23,7 +34,7 @@ compile_with_gcc(){
     CPPFLAGS='' CXXFLAGS='' LDFLAGS='' \
     WITHOUT_FORMAT_EXTENSIONS=no \
     /usr/bin/time \
-    make buildkernel -DKERNFAST KERNCONF=LIBCRUNCHTEST \
+    make buildkernel $kernfast_option KERNCONF=CRUNCHED \
     2> ~/errorlog | tee ~/log
     # -d A \
     # ;
