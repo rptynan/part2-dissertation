@@ -1,7 +1,7 @@
 From 533b790930f51127523d186e68641dec40c061ad Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:37:32 +0000
-Subject: [PATCH 1/4] Removed linuxism in Makefile.am
+Subject: [PATCH 1/6] Removed linuxism in Makefile.am
 
 ---
  Makefile.am | 2 +-
@@ -27,7 +27,7 @@ index c12b321..c2a62ac 100644
 From 7550da1ea788f1de648a141dd21dcb3ea2929ebc Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:38:06 +0000
-Subject: [PATCH 2/4] Removed linuxism in used-types-funcs.sh
+Subject: [PATCH 2/6] Removed linuxism in used-types-funcs.sh
 
 ---
  tools/used-types-funcs.sh | 4 +++-
@@ -55,7 +55,7 @@ index 2dbc327..c3ed8e7 100755
 From 05c25fba38ab1464e432fe94a9e92365aff7de40 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:39:03 +0000
-Subject: [PATCH 3/4] Added blacklist in main of allocscompilerwrapper. Should
+Subject: [PATCH 3/6] Added blacklist in main of allocscompilerwrapper. Should
  probably merge other blacklist in crunchcc to here.
 
 ---
@@ -106,7 +106,7 @@ index 462a13c..776090c 100644
 From 5ff15f9f8e541363cc5869a46be58b4f28b511c8 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:39:49 +0000
-Subject: [PATCH 4/4] link-used-types to not perform used-types as we're using
+Subject: [PATCH 4/6] link-used-types to not perform used-types as we're using
  dumptypes instead, and it's causing errors.
 
 ---
@@ -132,6 +132,121 @@ index 6bb591a..1263ff5 100755
     echo "Successfully did usedtypes" 1>&2 && \
     compile "$usedtypes_src" "$usedtypes_obj" && \
     echo "Successfully did compile" 1>&2 && \
+-- 
+2.9.0
+
+
+From 121494342fa7560112275122d813f8db03732c73 Mon Sep 17 00:00:00 2001
+From: Richard Tynan <richard@tynan.me>
+Date: Mon, 20 Feb 2017 23:28:55 +0000
+Subject: [PATCH 5/6] Cleaned up blacklist, etc, now crunchcc doesn't have a
+ blacklist
+
+---
+ tools/allocscompilerwrapper.py | 55 +++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 49 insertions(+), 6 deletions(-)
+
+diff --git a/tools/allocscompilerwrapper.py b/tools/allocscompilerwrapper.py
+index 776090c..3cf402c 100644
+--- a/tools/allocscompilerwrapper.py
++++ b/tools/allocscompilerwrapper.py
+@@ -240,21 +240,64 @@ class AllocsCompilerWrapper(CompilerWrapper):
+             self.debugMsg("We are not a link command\n")
+ 
+         # rpt
++        # -------------------------------------------------------------------- #
++
++        # gcc doesn't have support for these options and they're safe to
++        # ignore.
++        arg_blacklist = ['-Qunused-arguments']
++        sys.argv = [arg for arg in sys.argv if arg not in arg_blacklist]
++
++        # Here be blacklisting files.
+         blacklist = [
+             # Hack used by FreeBSD kernel, contains nothing.
+             'hack.c',
++            # Because extern symbols weren't being treated by cilly properly,
++            # causing them to be undefined in other objects.
++            'ixgbe_osdep.c',
++            'kern_umtx.c',
++            'tcp_input.c',
++            # These cause page faults for some unknown reason and I had to
++            # binary bisect by building the kernel to find them...
++            'ufs_vnops.c',
++            'ffs_softdep.c',
++            # For some reason I need to blacklist some of these (might not be
++            # all of them, haven't checked yet), or it page faults when I
++            # crunchcc all the other files.
++            'ufs_acl.o',
++            'ufs_bmap.o',
++            'ufs_dirhash.o',
++            'ufs_extattr.o',
++            'ufs_gjournal.o',
++            'ufs_inode.o',
++            'ufs_lookup.o',
++            'ufs_quota.o',
++            'ufs_vfsops.o',
++            'ufs_vnops.o',
+         ]
+-        self.debugMsg("trying overall blacklist" + str(sourceInputFiles) + '\n')
++
++        self.debugMsg("Trying blacklist" + str(sourceInputFiles) + '\n')
+         anyblacklisted = False
+         for blsource in blacklist:
+             for source in sourceInputFiles:
+                 anyblacklisted |= source.endswith(blsource)
++
+         if anyblacklisted:
+-            self.debugMsg('Overall blacklist, so calling compiler straight\n')
+-            self.debugMsg(str(sourceInputFiles))
+-            self.debugMsg(str(sys.argv[1:]))
+-            ret = self.runUnderlyingCompiler(sourceInputFiles, sys.argv[1:])
+-            return ret
++            alternativeCommand = ['/usr/local/bin/gcc'] + [
++                s for s in sys.argv[1:]
++                if not s.endswith('cilly') and not s.startswith('--')
++            ]
++            self.debugMsg('Blacklisted, so calling compiler straight with '
++                          'this command: {}\n'.format(alternativeCommand))
++            return subprocess.call(alternativeCommand)
++
++        # cilly doesn't like --sysroot, so we add --ccargs before it to tell
++        # cilly to pass it straight on to the underlying compiler.
++        # Note: this is done after the blacklist as we don't want to pass
++        # --ccargs to gcc.
++        sys.argv = [arg.replace('--sysroot', '--ccargs=--sysroot')
++                    for arg in sys.argv]
++
++        # -------------------------------------------------------------------- #
+ 
+ 
+         # If we're a linker command, then we have to handle allocation functions
+-- 
+2.9.0
+
+
+From f2df193ce5c84072435fc455cc1ae3abb2ec1f87 Mon Sep 17 00:00:00 2001
+From: Richard Tynan <richard@tynan.me>
+Date: Mon, 20 Feb 2017 23:29:19 +0000
+Subject: [PATCH 6/6] Changed include to match freebsd's src
+
+---
+ include/uniqtype-defs.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/uniqtype-defs.h b/include/uniqtype-defs.h
+index 9302802..acf432a 100644
+--- a/include/uniqtype-defs.h
++++ b/include/uniqtype-defs.h
+@@ -29,7 +29,7 @@ of or in connection with the use or performance of this software.
+ extern "C" {
+ #endif
+ 
+-#include <stddef.h>
++#include <sys/stddef.h>
+ /* Don't include any inline functions before we've defined *our* inlines,
+  * or they'll get instrumented by CIL passes and create lots of implicit-declaration
+  * problems. Since our inline function needs some includes, we put them at the bottom. */
 -- 
 2.9.0
 

@@ -1,7 +1,7 @@
 From 202364536896ca0d1806ba460b9161a16528f6ae Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:25:31 +0000
-Subject: [PATCH 1/2] Adding extern to prevent warnings about common symbols
+Subject: [PATCH 1/4] Adding extern to prevent warnings about common symbols
 
 ---
  include/libcrunch_cil_inlines.h | 6 +++---
@@ -31,7 +31,7 @@ index 06c5803..f9e95ef 100644
 From d78af9aa5acff1dc682782c8a20ba62e59e0dad0 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:27:27 +0000
-Subject: [PATCH 2/2] Added blacklist to runUnderlyingCompiler().
+Subject: [PATCH 2/4] Added blacklist to runUnderlyingCompiler().
 
 ---
  frontend/c/bin/crunchcc | 72 +++++++++++++++++++++++++++++++++++++++++++++++++
@@ -117,6 +117,133 @@ index e375481..d5ab5e5 100755
 +            exit()
 +        else:
 +            return AllocsCC.runUnderlyingCompiler(self, sourceFiles, options)
+     
+     def getLibNameStem(self):
+         return "crunch"
+-- 
+2.9.0
+
+
+From 5a4bef3cfbea862b6860531a8fdd9731d4bbeba5 Mon Sep 17 00:00:00 2001
+From: Richard Tynan <richard@tynan.me>
+Date: Mon, 20 Feb 2017 23:31:10 +0000
+Subject: [PATCH 3/4] Again added extern to stop warnings about common symbols
+
+---
+ include/libcrunch_cil_inlines.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/include/libcrunch_cil_inlines.h b/include/libcrunch_cil_inlines.h
+index f9e95ef..624fc68 100644
+--- a/include/libcrunch_cil_inlines.h
++++ b/include/libcrunch_cil_inlines.h
+@@ -61,9 +61,9 @@ typedef struct __libcrunch_bounds_s __libcrunch_bounds_t;
+ extern void **__libcrunch_bounds_bases_region_00;
+ extern void **__libcrunch_bounds_bases_region_2a;
+ extern void **__libcrunch_bounds_bases_region_7a;
+-unsigned long *__libcrunch_bounds_sizes_region_00;
+-unsigned long *__libcrunch_bounds_sizes_region_2a;
+-unsigned long *__libcrunch_bounds_sizes_region_7a;
++extern unsigned long *__libcrunch_bounds_sizes_region_00;
++extern unsigned long *__libcrunch_bounds_sizes_region_2a;
++extern unsigned long *__libcrunch_bounds_sizes_region_7a;
+ 
+ #ifndef unlikely
+ #define __libcrunch_defined_unlikely
+-- 
+2.9.0
+
+
+From 2b9dfbfb1c8842a0d1e0fa6203ed295c57c3c3ab Mon Sep 17 00:00:00 2001
+From: Richard Tynan <richard@tynan.me>
+Date: Mon, 20 Feb 2017 23:31:30 +0000
+Subject: [PATCH 4/4] Blacklist has been moved to allocscompilerwrapper.py in
+ liballocs
+
+---
+ frontend/c/bin/crunchcc | 72 -------------------------------------------------
+ 1 file changed, 72 deletions(-)
+
+diff --git a/frontend/c/bin/crunchcc b/frontend/c/bin/crunchcc
+index d5ab5e5..e375481 100755
+--- a/frontend/c/bin/crunchcc
++++ b/frontend/c/bin/crunchcc
+@@ -53,78 +53,6 @@ class CrunchCC(AllocsCC):
+             # some unused stuff (unavoidably, I believe) which will
+             # make compilation done with -Werror barf if we don't
+             # silence them.
+-
+-    def runUnderlyingCompiler(self, sourceFiles, options):
+-        # rpt
+-        blacklist = [
+-            # Because extern symbols weren't being treated by cilly properly,
+-            # causing them to be undefined in other objects.
+-            'ixgbe_osdep.c',
+-            'kern_umtx.c',
+-            'tcp_input.c',
+-            # Because __uniqtype__void and __uniqtype__void_suboj_n were
+-            # getting "multiple definition" errors.
+-            'ac97_if.c',
+-            'acpi_if.c',
+-            'acpi_wmi_if.c',
+-            'agp_if.c',
+-            'ata_if.c',
+-            'bus_if.c',
+-            'card_if.c',
+-            'channel_if.c',
+-            'clock_if.c',
+-            'cpufreq_if.c',
+-            'device_if.c',
+-            'eisa_if.c',
+-            'fb_if.c',
+-            'feeder_if.c',
+-            'g_part_if.c',
+-            'g_raid_md_if.c',
+-            'g_raid_tr_if.c',
+-            'geom_event.c',
+-            'isa_if.c',
+-            'miibus_if.c',
+-            'mixer_if.c',
+-            'mpufoi_if.c',
+-            'pci_if.c',
+-            'pcib_if.c',
+-            'power_if.c',
+-            'ppb_msq.c',
+-            'ppbus_if.c',
+-            'sdhci_if.c',
+-            'serdev_if.c',
+-            'subr_prf.c',
+-            'uart_if.c',
+-            'usb_if.c',
+-            'vers.c',
+-            'vfs_mount.c',
+-            'virtio_bus_if.c',
+-            'virtio_if.c',
+-            'vnode_if.c',
+-            'xenbus_if.c',
+-            'xenbusb_if.c',
+-            'xenstore.c',
+-        ]
+-        self.debugMsg("trying blacklist" + str(sourceFiles))
+-        anyblacklisted = False
+-        for blsource in blacklist:
+-            for source in sourceFiles:
+-                anyblacklisted |= source.endswith(blsource)
+-        if anyblacklisted:
+-            self.debugMsg('Blacklist, so using gcc')
+-            originalCommand = options
+-            # self.debugMsg('***')
+-            # self.debugMsg(self.getUnderlyingCompilerCommand(sourceFiles))
+-            # self.debugMsg('***')
+-            # self.debugMsg(options)
+-            # self.debugMsg('***')
+-            alternativeCommand = ['/usr/local/bin/gcc'] + [s for s in originalCommand \
+-                if not s.endswith('cilly') and not s.startswith('--')]
+-            # self.debugMsg(alternativeCommand)
+-            subprocess.call(alternativeCommand)
+-            exit()
+-        else:
+-            return AllocsCC.runUnderlyingCompiler(self, sourceFiles, options)
      
      def getLibNameStem(self):
          return "crunch"
