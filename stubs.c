@@ -1,7 +1,7 @@
 #define _GNU_SOURCE
 /* #include <sys/stdint.h> */
 /* #include <stdio.h> */
-/* #include <sys/mman.h> */
+/* #include <sys/mman.h> */ #include <sys/ktr.h>
 
 
 /* rpt */
@@ -60,10 +60,15 @@ unsigned long int __libcrunch_checked_pointer_adjustments = 0;
 unsigned long int __libcrunch_primary_secondary_transitions = 0;
 unsigned long int __libcrunch_fault_handler_fixups = 0;
 
-void __liballocs_systrap_init(void){ return; }
+void __liballocs_systrap_init(void)
+{
+	CTR0(KTR_PTRACE, "__liballocs_systrap_init");
+	return;
+}
 static void init(void) __attribute__((constructor));
 static void init(void)
 {
+	CTR0(KTR_PTRACE, "init");
     /* It's critical that we detect whether we're being overridden,
      * and skip this init if so. The preload code in liballocs wants to
      * initialise systrap *only* after it has scanned /proc/self/maps, 
@@ -73,52 +78,70 @@ static void init(void)
     if (&__libcrunch_is_initialized == &our_init_flag) __liballocs_systrap_init();
 }
 
-void __libcrunch_scan_lazy_typenames(void *blah) {}
+void __libcrunch_scan_lazy_typenames(void *blah)
+{
+	CTR0(KTR_PTRACE, "__libcrunch_scan_lazy_typenames");
+}
 
 int __libcrunch_check_init(void)
 {
-    return 0;
+	CTR0(KTR_PTRACE, "__libcrunch_check_init");
+	return 0;
 }
 
 int __libcrunch_global_init(void)
 {
-    return 0;
+	CTR0(KTR_PTRACE, "__libcrunch_global_init");
+	return 0;
 }
 
 int __is_a_internal(const void *obj, const void *r)
 {
-    return 1;
+	CTR0(KTR_PTRACE, "__is_a_internal");
+	CTR1(
+		KTR_PTRACE,
+		"* __is_a_internal, address pointed to by obj: %d",
+		obj
+	);
+	return 1;
 }
 
 int __like_a_internal(const void *obj, const void *r)
 {
-    return 1;
+	CTR0(KTR_PTRACE, "__like_a_internal");
+	return 1;
 }
 
 int __loosely_like_a_internal(const void *obj, const void *r)
 {
-    return 1;
+	CTR0(KTR_PTRACE, "__loosely_like_a_internal");
+	return 1;
 }
 
 int __named_a_internal(const void *obj, const void *r)
 {
-    return 1;
+	CTR0(KTR_PTRACE, "__named_a_internal");
+	return 1;
 }
 
 int __check_args_internal(const void *obj, int nargs, ...)
 {
-    return 1;
+	CTR0(KTR_PTRACE, "__check_args_internal");
+	return 1;
 }
 
 int __is_a_function_refining_internal(const void *obj, const void *r)
 {
-    return 1;
+	CTR0(KTR_PTRACE, "__is_a_function_refining_internal");
+	return 1;
 }
 int __is_a_pointer_of_degree_internal(const void *obj, int d)
 {
-    return 1;
+	CTR0(KTR_PTRACE, "__is_a_pointer_of_degree_internal");
+	return 1;
 }
 int __can_hold_pointer_internal(const void *obj, const void *target)
 {
-    return 1;
+	CTR0(KTR_PTRACE, "__can_hold_pointer_internal");
+	return 1;
 }
