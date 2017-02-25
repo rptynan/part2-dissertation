@@ -1,7 +1,7 @@
 From 533b790930f51127523d186e68641dec40c061ad Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:37:32 +0000
-Subject: [PATCH 1/6] Removed linuxism in Makefile.am
+Subject: [PATCH 1/7] Removed linuxism in Makefile.am
 
 ---
  Makefile.am | 2 +-
@@ -27,7 +27,7 @@ index c12b321..c2a62ac 100644
 From 7550da1ea788f1de648a141dd21dcb3ea2929ebc Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:38:06 +0000
-Subject: [PATCH 2/6] Removed linuxism in used-types-funcs.sh
+Subject: [PATCH 2/7] Removed linuxism in used-types-funcs.sh
 
 ---
  tools/used-types-funcs.sh | 4 +++-
@@ -55,7 +55,7 @@ index 2dbc327..c3ed8e7 100755
 From 05c25fba38ab1464e432fe94a9e92365aff7de40 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:39:03 +0000
-Subject: [PATCH 3/6] Added blacklist in main of allocscompilerwrapper. Should
+Subject: [PATCH 3/7] Added blacklist in main of allocscompilerwrapper. Should
  probably merge other blacklist in crunchcc to here.
 
 ---
@@ -106,7 +106,7 @@ index 462a13c..776090c 100644
 From 5ff15f9f8e541363cc5869a46be58b4f28b511c8 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:39:49 +0000
-Subject: [PATCH 4/6] link-used-types to not perform used-types as we're using
+Subject: [PATCH 4/7] link-used-types to not perform used-types as we're using
  dumptypes instead, and it's causing errors.
 
 ---
@@ -139,7 +139,7 @@ index 6bb591a..1263ff5 100755
 From 121494342fa7560112275122d813f8db03732c73 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Mon, 20 Feb 2017 23:28:55 +0000
-Subject: [PATCH 5/6] Cleaned up blacklist, etc, now crunchcc doesn't have a
+Subject: [PATCH 5/7] Cleaned up blacklist, etc, now crunchcc doesn't have a
  blacklist
 
 ---
@@ -228,7 +228,7 @@ index 776090c..3cf402c 100644
 From f2df193ce5c84072435fc455cc1ae3abb2ec1f87 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Mon, 20 Feb 2017 23:29:19 +0000
-Subject: [PATCH 6/6] Changed include to match freebsd's src
+Subject: [PATCH 6/7] Changed include to match freebsd's src
 
 ---
  include/uniqtype-defs.h | 2 +-
@@ -247,6 +247,77 @@ index 9302802..acf432a 100644
  /* Don't include any inline functions before we've defined *our* inlines,
   * or they'll get instrumented by CIL passes and create lots of implicit-declaration
   * problems. Since our inline function needs some includes, we put them at the bottom. */
+-- 
+2.9.0
+
+
+From 2547d57c6f6757cff7e68bd9c286718cb31269c7 Mon Sep 17 00:00:00 2001
+From: Richard Tynan <richard@tynan.me>
+Date: Sat, 25 Feb 2017 00:51:57 +0000
+Subject: [PATCH 7/7] Fix for KTR breakages
+
+---
+ tools/allocscompilerwrapper.py | 47 +++++++++++++++++++++++++++++++++---------
+ 1 file changed, 37 insertions(+), 10 deletions(-)
+
+diff --git a/tools/allocscompilerwrapper.py b/tools/allocscompilerwrapper.py
+index 3cf402c..1f19637 100644
+--- a/tools/allocscompilerwrapper.py
++++ b/tools/allocscompilerwrapper.py
+@@ -263,16 +263,43 @@ class AllocsCompilerWrapper(CompilerWrapper):
+             # For some reason I need to blacklist some of these (might not be
+             # all of them, haven't checked yet), or it page faults when I
+             # crunchcc all the other files.
+-            'ufs_acl.o',
+-            'ufs_bmap.o',
+-            'ufs_dirhash.o',
+-            'ufs_extattr.o',
+-            'ufs_gjournal.o',
+-            'ufs_inode.o',
+-            'ufs_lookup.o',
+-            'ufs_quota.o',
+-            'ufs_vfsops.o',
+-            'ufs_vnops.o',
++            'ufs_acl.c',
++            'ufs_bmap.c',
++            'ufs_dirhash.c',
++            'ufs_extattr.c',
++            'ufs_gjournal.c',
++            'ufs_inode.c',
++            'ufs_lookup.c',
++            'ufs_quota.c',
++            'ufs_vfsops.c',
++            'ufs_vnops.c',
++            # Build with KTR support for some reason only works if I blacklist
++            # these (potentially could cut out some of the x*.o files).
++            'init_main.o',
++            'subr_prof.o',
++            'kern_ktr.o',
++            'x86bios.o',
++            'x86emu.o',
++            'xdr.o',
++            'xdr_array.o',
++            'xdr_mbuf.o',
++            'xdr_mem.o',
++            'xdr_reference.o',
++            'xdr_sizeof.o',
++            'xen_intr.o',
++            'xenbus.o',
++            'xenbus_if.o',
++            'xenbusb.o',
++            'xenbusb_back.o',
++            'xenbusb_front.o',
++            'xenbusb_if.o',
++            'xenpci.o',
++            'xenstore.o',
++            'xenstore_dev.o',
++            'xhci.o',
++            'xhci_pci.o',
++            'xlphy.o',
++            'xmphy.o',
+         ]
+ 
+         self.debugMsg("Trying blacklist" + str(sourceInputFiles) + '\n')
 -- 
 2.9.0
 

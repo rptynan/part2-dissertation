@@ -23,21 +23,21 @@ function cplettersout() {
 # checkletter <letter>
 function checkletter() {
     inCRUNCHED=0
-    for i in $(find CRUNCHED -name "$1*.o"); do
+    for i in $(find CRUNCHED -depth 1 -name "$1*.o"); do
         [[ $(readelf -s $i | grep libcrunch) ]] && inCRUNCHED=$(($inCRUNCHED+1))
     done
     echo "In CRUNCHED there are $inCRUNCHED crunched files"
     echo "Out of $(ls CRUNCHED/$1*.o | wc -l) files"
 
     ingcc=0
-    for i in $(find CRUNCHED_gcc -name "$1*.o"); do
+    for i in $(find CRUNCHED_gcc -depth 1 -name "$1*.o"); do
         [[ $(readelf -s $i | grep libcrunch) ]] && ingcc=$(($ingcc+1))
     done
     echo "In gcc files there are $ingcc crunched files"
     echo "Out of $(ls CRUNCHED_gcc/$1*.o | wc -l) files"
 
     incrunchcc=0
-    for i in $(find CRUNCHED_crunchcc -name "$1*.o"); do
+    for i in $(find CRUNCHED_crunchcc -depth 1 -name "$1*.o"); do
         [[ $(readelf -s $i | grep libcrunch) ]] && incrunchcc=$(($incrunchcc+1))
     done
     echo "In crunchcc files there are $incrunchcc crunched files"
@@ -65,11 +65,32 @@ function populatedir() {
 # Populate according to file specified as so:
 # filenameA.o gcc
 # filenameB.o crunchcc
-function populatefromfile() {
+function populatefromfile(){
     while read line; do
+        if [[ $line == \#* ]] || [[ $line == "" ]]; then
+			echo $line
+            continue;
+        fi
         compiler=$(echo $line | cut -d ' ' -f 2)
         filename=$(echo $line | cut -d ' ' -f 1)
         echo "cp -f CRUNCHED_$compiler/$filename CRUNCHED/"
         cp -f CRUNCHED_$compiler/$filename CRUNCHED/
     done < $1
+}
+
+# iscrunched <file>
+function iscrunched(){
+    if [[ $(readelf -s $1 | grep libcrunch) ]]; then
+        echo 1
+    else
+        echo 0
+    fi
+}
+
+# diroverview
+# Says if the file has been crunched or not in the src directory.
+function diroverview(){
+    for i in $(find CRUNCHED -depth 1 -name "*.o"); do
+        echo "$i $(iscrunched $i)"
+    done | sort
 }
