@@ -1,7 +1,8 @@
 #define _GNU_SOURCE
 /* #include <sys/stdint.h> */
 /* #include <stdio.h> */
-/* #include <sys/mman.h> */ #include <sys/ktr.h>
+/* #include <sys/mman.h> */
+#include <sys/ktr.h>
 
 
 /* rpt */

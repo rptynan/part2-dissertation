@@ -26,7 +26,6 @@ makeoptions	DEBUG=-g		# Build kernel with gdb(1) debug symbols
 makeoptions	WITH_CTF=1		# Run ctfconvert(1) for DTrace support
 makeoptions	NO_WERROR=		# Disable Werror
 makeoptions	WERROR=			# Disable Werror
-makeoptions	WERROR=			# Disable Werror
 options 	KTR				# ktr tracing to debug kernel
 options 	KTR_COMPILE=(KTR_PTRACE)
 options 	KTR_ENTRIES=131072
