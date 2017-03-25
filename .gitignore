@@ -1,3 +1,4 @@
 *.i*
 *.cil*
+*.core
 libcrunchk/test/build/*
