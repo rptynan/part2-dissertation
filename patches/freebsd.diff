@@ -17,12 +17,16 @@ Index: sys/conf/files
 ===================================================================
 --- sys/conf/files	(revision 313929)
 +++ sys/conf/files	(working copy)
-@@ -3129,6 +3129,8 @@
+@@ -3129,6 +3129,12 @@
  kern/sysv_sem.c			optional sysvsem
  kern/sysv_shm.c			optional sysvshm
  kern/tty.c			standard
 +kern/stubs.c			standard
-+kern/types.c			standard
++kern/typesstack.c		standard
++kern/types1.c			standard
++kern/types2.c			standard
++kern/types3.c			standard
++kern/types4.c			standard
  kern/tty_compat.c		optional compat_43tty
  kern/tty_info.c			standard
  kern/tty_inq.c			standard
@@ -78,40 +82,21 @@ Index: sys/dev/hyperv/vmbus/amd64/hyperv_machdep.c
 ===================================================================
 Index: sys/dev/hyperv/vmbus/amd64/vmbus_vector.S
 ===================================================================
-Index: sys/kern/tty.c
+Index: sys/netinet/ip_icmp.c
 ===================================================================
---- sys/kern/tty.c	(revision 313929)
-+++ sys/kern/tty.c	(working copy)
-@@ -67,6 +67,8 @@
+--- sys/netinet/ip_icmp.c	(revision 313929)
++++ sys/netinet/ip_icmp.c	(working copy)
+@@ -369,6 +369,10 @@
+ 	void (*ctlfunc)(int, struct sockaddr *, void *);
+ 	int fibnum;
  
- #include <machine/stdarg.h>
- 
-+#include <sys/ktr.h>
++	PRINTD1("icmp_input, m: %u", m);
++	struct sockaddr_in *x = (struct sockaddr_in *) m; //debugging, rpt
++	PRINTD1("icmp_input, x: %u", x);
 +
- static MALLOC_DEFINE(M_TTY, "tty", "tty device");
- 
- static void tty_rel_free(struct tty *tp);
-@@ -175,7 +177,7 @@
- static __inline int
- ttydev_enter(struct tty *tp)
- {
--
-+	CTR0(KTR_PTRACE, "HI IT'S TTYDEV_ENTER");
- 	tty_lock(tp);
- 
- 	if (tty_gone(tp) || !tty_opened(tp)) {
-@@ -242,6 +244,11 @@
- 	struct tty *tp;
- 	int error;
- 
-+	CTR1(
-+		KTR_PTRACE,
-+		"* ttydev_open, should be check around here: %d",
-+		dev->si_drv1
-+	);
- 	tp = dev->si_drv1;
- 	error = 0;
- 	tty_lock(tp);
+ 	/*
+ 	 * Locate icmp structure in mbuf, and check
+ 	 * that not corrupted and of at least minimum length.
 Index: sys/rpc/svc.h
 ===================================================================
 --- sys/rpc/svc.h	(revision 313929)
