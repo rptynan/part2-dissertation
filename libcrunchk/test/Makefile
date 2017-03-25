@@ -20,5 +20,5 @@ all:
 	$(CRUNCHCC) test.c -c -o $(BUILD_DIR)/test.o -DDEBUG_CIL_INLINES=2
 	$(DUMPTYPES) $(BUILD_DIR)/test.o > $(BUILD_DIR)/types.c 2> /dev/null
 	$(PLAIN_CC) $(BUILD_DIR)/types.c -c -o $(BUILD_DIR)/types.o
-	$(PLAIN_CC) ../stubs.c $(BUILD_DIR)/types.o $(BUILD_DIR)/test.o -o $(BUILD_DIR)/test -DDEBUG_STUBS=2
+	$(PLAIN_CC) ../stubs.c $(BUILD_DIR)/types.o $(BUILD_DIR)/test.o -o $(BUILD_DIR)/test -DDEBUG_STUBS=2 -Wl,-wrap,malloc
 	./$(BUILD_DIR)/test
