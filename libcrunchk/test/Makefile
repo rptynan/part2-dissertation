@@ -11,11 +11,14 @@ export CC
 
 export DUMPTYPES = $(LIBALLOCS_BASE)/tools/dumptypes
 
+export BUILD_DIR = ./build
+
 default: all
 
 all:
-	$(CRUNCHCC) test.c -c -o test.o
-	$(DUMPTYPES) test.o > types.c 2> /dev/null
-	$(PLAIN_CC) types.c -c -o types.o
-	$(PLAIN_CC) ../stubs.c types.o test.o -o test -DDEBUG_STUBS
-	./test
+	mkdir -p $(BUILD_DIR)
+	$(CRUNCHCC) test.c -c -o $(BUILD_DIR)/test.o -DDEBUG_CIL_INLINES=2
+	$(DUMPTYPES) $(BUILD_DIR)/test.o > $(BUILD_DIR)/types.c 2> /dev/null
+	$(PLAIN_CC) $(BUILD_DIR)/types.c -c -o $(BUILD_DIR)/types.o
+	$(PLAIN_CC) ../stubs.c $(BUILD_DIR)/types.o $(BUILD_DIR)/test.o -o $(BUILD_DIR)/test -DDEBUG_STUBS=2
+	./$(BUILD_DIR)/test

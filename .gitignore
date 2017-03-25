@@ -1,0 +1,3 @@
+*.i*
+*.cil*
+libcrunchk/test/build/*

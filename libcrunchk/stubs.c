@@ -1,14 +1,17 @@
 #define _GNU_SOURCE
 
 /* Debug printouts */
-#define DEBUG_STUBS
-#ifdef DEBUG_STUBS
+#if DEBUG_STUBS == 1
 #include <sys/ktr.h>
-#define PRINTD(x) CTR0(KTR_PTRACE, x)
-#define PRINTD1(s, x) CTR1(KTR_PTRACE, s,x)
+  #define PRINTD(x) CTR0(KTR_PTRACE, x)
+  #define PRINTD1(f, x) CTR1(KTR_PTRACE, f,x)
+#elif DEBUG_STUBS == 2
+  extern printf(const char* format, ... );
+  #define PRINTD(x) printf(x "\n")
+  #define PRINTD1(f, x) printf(f "\n", x)
 #else
-#define PRINTD(x) (void)
-#define PRINTD1(s, x) (void)
+  #define PRINTD(x) if(0 && x)
+  #define PRINTD1(f, x) if(0 && f && x)
 #endif
 
 
@@ -47,6 +50,15 @@
 /*
  * ???
 */
+void __assert_fail(
+	const char *__assertion,
+	const char *__file,
+	unsigned int __line,
+	const char *__function
+) {
+	return;
+}
+
 
 
 
