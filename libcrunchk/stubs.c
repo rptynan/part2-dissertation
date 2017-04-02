@@ -1,4 +1,12 @@
-#include <sys/malloc.h>  // for malloc_type
+// malloc_type
+#include <sys/malloc.h> 
+// CTASSERT
+#include <sys/cdefs.h>
+#include <sys/param.h>
+#include <sys/systm.h>
+// sysctl
+#include <sys/types.h>
+#include <sys/sysctl.h>
 
 /* Debug printouts */
 #if DEBUG_STUBS == 1
@@ -49,10 +57,15 @@ void *__wrap_malloc(unsigned long size, struct malloc_type *type, int flags)
 	if (!type) PRINTD("malloc, no type!");
 	else PRINTD1("malloc called, type: %s", type->ks_shortdesc);
 
-	void *ret;
+	// Keep track of if we're first to set currently_allocating...
+	_Bool set_currently_allocating = !__currently_allocating;
 	__currently_allocating = 1;
+
+	void *ret;
 	ret = __real_malloc(size, type, flags);
-	__currently_allocating = 0;
+
+	// ...and only unset it if that's the case
+	if (set_currently_allocating) __currently_allocating = 0;
 	return ret;
 }
 
@@ -475,19 +488,31 @@ extern _Bool our_init_flag __attribute__(
 );
 
 struct __libcrunch_cache __libcrunch_is_a_cache; // all zeroes
-/* counters */
-unsigned long int __libcrunch_begun = 0;
-unsigned long int __libcrunch_failed = 0;
-unsigned long int __libcrunch_succeeded = 0;
-unsigned long int __libcrunch_aborted_typestr = 0;
-unsigned long int __libcrunch_is_a_hit_cache = 0;
-unsigned long int __libcrunch_created_invalid_pointer = 0;
-unsigned long int __libcrunch_checked_pointer_adjustments = 0;
-unsigned long int __libcrunch_primary_secondary_transitions = 0;
-unsigned long int __libcrunch_fault_handler_fixups = 0;
-// added from libcrunch.c
-unsigned long int __libcrunch_lazy_heap_type_assignment = 0;
-unsigned long int __libcrunch_failed_in_alloc = 0;
+/* Counters, macro will define the unsigned long to store the value and then
+ * define a sysctl MIB under the debug.libcrunch parent node */
+static SYSCTL_NODE(
+	_debug, OID_AUTO, libcrunch, CTLFLAG_RD, 0, "libcrunch stats"
+);
+#define LIBCRUNCH_COUNTER(name) \
+	unsigned long int __libcrunch_ ## name = 0; \
+	SYSCTL_ULONG( \
+		_debug_libcrunch, OID_AUTO, name, CTLFLAG_RD, \
+		&__libcrunch_ ## name, \
+		sizeof(__libcrunch_ ## name), \
+		"__libcrunch_" #name \
+	)
+LIBCRUNCH_COUNTER(begun);
+LIBCRUNCH_COUNTER(failed);
+LIBCRUNCH_COUNTER(succeeded);
+LIBCRUNCH_COUNTER(aborted_typestr);
+LIBCRUNCH_COUNTER(is_a_hit_cache);
+LIBCRUNCH_COUNTER(created_invalid_pointer);
+LIBCRUNCH_COUNTER(checked_pointer_adjustments);
+LIBCRUNCH_COUNTER(primary_secondary_transitions);
+LIBCRUNCH_COUNTER(fault_handler_fixups);
+/* added from libcrunch.c */
+LIBCRUNCH_COUNTER(lazy_heap_type_assignment);
+LIBCRUNCH_COUNTER(failed_in_alloc);
 
 void __liballocs_systrap_init(void)
 {
