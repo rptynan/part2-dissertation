@@ -1,24 +1,26 @@
-export LIBALLOCS_BASE = /usr/local/src/liballocs
-export LIBCRUNCH_BASE := /usr/local/src/libcrunch
-export LIBCRUNCH_ALWAYS_PRINT_EXIT_SUMMARY := 1
+LIBALLOCS_BASE = /usr/local/src/liballocs
+LIBCRUNCH_BASE := /usr/local/src/libcrunch
 
-CRUNCHCC ?= $(LIBCRUNCH_BASE)/frontend/c/bin/crunchcc
+CRUNCHCC = $(LIBCRUNCH_BASE)/frontend/c/bin/crunchcc
 PLAIN_CC = /usr/bin/gcc
-CC = $(CRUNCHCC)
-export CRUNCHCC
-export PLAIN_CC
-export CC
+DUMPTYPES = $(LIBALLOCS_BASE)/tools/dumptypes
 
-export DUMPTYPES = $(LIBALLOCS_BASE)/tools/dumptypes
+PLAIN_OBJS = libcrunch.o liballocs.o allocators.o
+CRUNCHED_OBJS = test.c
+W_FLAGS = -Wall -Wno-format
+DEBUG_FLAGS = -DDEBUG_CIL_INLINES=2 -DDEBUG_STUBS=2
 
-export BUILD_DIR = ./build
 
 default: all
 
-all:
-	mkdir -p $(BUILD_DIR)
-	$(CRUNCHCC) test.c -c -o $(BUILD_DIR)/test.o -DDEBUG_CIL_INLINES=2
-	$(DUMPTYPES) $(BUILD_DIR)/test.o > $(BUILD_DIR)/types.c 2> /dev/null
-	$(PLAIN_CC) $(BUILD_DIR)/types.c -c -o $(BUILD_DIR)/types.o
-	$(PLAIN_CC) ../stubs.c $(BUILD_DIR)/types.o $(BUILD_DIR)/test.o -o $(BUILD_DIR)/test -DDEBUG_STUBS=2 -Wl,-wrap,malloc
-	./$(BUILD_DIR)/test
+test.o: test.c
+	$(CRUNCHCC) $^ -c -o $@ $(DEBUG_FLAGS) $(W_FLAGS)
+
+%.o: ../%.c
+	$(PLAIN_CC) $^ -I../.. -c -o $@ $(DEBUG_FLAGS) $(W_FLAGS)
+
+all: $(PLAIN_OBJS) test.o
+	$(DUMPTYPES) test.o > types.c 2> /dev/null
+	$(PLAIN_CC) types.c -c -o types.o
+	$(PLAIN_CC) $(PLAIN_OBJS) types.o test.o -o test -Wl,-wrap,malloc -lc $(DEBUG_FLAGS)
+	./test

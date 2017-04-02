@@ -1,4 +1,7 @@
+*.o
+*.o.fixuplog
 *.i*
 *.cil*
 *.core
-libcrunchk/test/build/*
+libcrunchk/test/test
+libcrunchk/test/types.c
