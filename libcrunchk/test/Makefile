@@ -6,9 +6,8 @@ PLAIN_CC = /usr/bin/gcc
 DUMPTYPES = $(LIBALLOCS_BASE)/tools/dumptypes
 
 PLAIN_OBJS = libcrunch.o liballocs.o allocators.o
-CRUNCHED_OBJS = test.c
 W_FLAGS = -Wall -Wno-format
-DEBUG_FLAGS = -DDEBUG_CIL_INLINES=2 -DDEBUG_STUBS=2
+DEBUG_FLAGS = -DDEBUG_CIL_INLINES=2 -DDEBUG_STUBS=2 -DNDEBUG -g
 
 
 default: all

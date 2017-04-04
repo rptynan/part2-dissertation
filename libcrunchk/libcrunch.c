@@ -1,8 +1,10 @@
 #include <libcrunchk/libcrunch.h>
-// CTASSERT
-/* #include <sys/cdefs.h> */
-/* #include <sys/param.h> */
-/* #include <sys/systm.h> */
+#if _KERNEL
+  // CTASSERT, for sysctl
+  #include <sys/cdefs.h>
+  #include <sys/param.h>
+  #include <sys/systm.h>
+#endif
 // sysctl
 #include <sys/types.h>
 #include <sys/sysctl.h>
@@ -24,7 +26,7 @@ void __assert_fail(
 
 /* Counters, macro will define the unsigned long to store the value and then
  * define a sysctl MIB under the debug.libcrunch parent node */
-#if KERNEL
+#if _KERNEL
   static SYSCTL_NODE(
 	_debug, OID_AUTO, libcrunch, CTLFLAG_RD, 0, "libcrunch stats"
   );
@@ -244,7 +246,7 @@ int __is_a_internal(const void *obj, const void *arg)
 {
 	PRINTD("__is_a_internal");
 	PRINTD1(
-		"__is_a_internal, address pointed to by obj: %u",
+		"__is_a_internal, address pointed to by obj: %p",
 		obj
 	);
 
@@ -258,15 +260,49 @@ int __is_a_internal(const void *obj, const void *arg)
 	unsigned long alloc_size_bytes;
 	struct uniqtype *alloc_uniqtype = (struct uniqtype *)0;
 	const void *alloc_site;
-	
-	struct liballocs_err *err = __liballocs_get_alloc_info(obj, 
+
+	struct liballocs_err *err = __liballocs_get_alloc_info(
+		obj,
 		&a,
 		&alloc_start,
 		&alloc_size_bytes,
 		&alloc_uniqtype,
-		&alloc_site);
-	
-	if (__builtin_expect(err != NULL, 0)) return 1; // liballocs has already counted this abort
+		&alloc_site
+	);
+
+	// Hack for simplicity, if the type hasn't been set by the allocation,
+	// we assume it's this type, and try again.
+	if (unlikely(err != NULL && alloc_site &&
+		!tagged_uniqtype_array[ALLOCSITE_ARRAY_INDEX(alloc_site)].type)
+	) {
+		PRINTD1(
+			"__is_a_internal, setting type to first check: allocsite %p",
+			alloc_site
+		);
+		PRINTD2(
+			"... index %u, type %p",
+			ALLOCSITE_ARRAY_INDEX(alloc_site),
+			test_uniqtype
+		);
+		tagged_uniqtype_array[ALLOCSITE_ARRAY_INDEX(alloc_site)].type =
+			test_uniqtype;
+		err = __liballocs_get_alloc_info(
+			obj,
+			&a,
+			&alloc_start,
+			&alloc_size_bytes,
+			&alloc_uniqtype,
+			&alloc_site
+		);
+	}
+
+	if (__builtin_expect(err != NULL, 0)) {
+		PRINTD1(
+			"__is_a_internal, liballocs_get_alloc_info returned error: %s",
+			err->message
+		);
+		return 1; // liballocs has already counted this abort
+	}
 
 	signed target_offset_within_uniqtype = (char*) obj - (char*) alloc_start;
 	void *range_base;
@@ -375,7 +411,10 @@ int __is_a_internal(const void *obj, const void *arg)
 						); // lvl=0
 					}
 
-					// lvl=0
+					/* debug_printf(0, "Failed check __is_a(%p, %p a.k.a. \"%s\") at %p (%s); " */
+					/* 		"obj is %ld bytes into a %s%s%s " */
+					/* 		"(deepest subobject: %s at offset %d) " */
+					/* 		"originating at %p\n", */ 
 					PRINTD2("Failed check __is_a(%p, %p)", obj, test_uniqtype);
 					PRINTD1("a.k.a. \"%s\"", UNIQTYPE_NAME(test_uniqtype));
 					PRINTD2(
@@ -415,10 +454,181 @@ int __is_a_internal(const void *obj, const void *arg)
 	return 1; // HACK: so that the program will continue
 }
 
-int __like_a_internal(const void *obj, const void *r)
+/* Optimised version, for when you already know the uniqtype address. */
+int __like_a_internal(const void *obj, const void *arg)
 {
 	PRINTD("__like_a_internal");
+	// FIXME: use our recursive subobject search here? HMM -- semantics are non-obvious.
+	
+	/* We might not be initialized yet (recall that __libcrunch_global_init is 
+	 * not a constructor, because it's not safe to call super-early). */
+	__libcrunch_check_init();
+	
+	const struct uniqtype *test_uniqtype = (const struct uniqtype *) arg;
+	struct allocator *a;
+	const void *alloc_start;
+	unsigned long alloc_size_bytes;
+	struct uniqtype *alloc_uniqtype = (struct uniqtype *)0;
+	const void *alloc_site;
+	/* void *caller_address = __builtin_return_address(0); */
+	
+	struct liballocs_err *err = __liballocs_get_alloc_info(
+		obj,
+		&a,
+		&alloc_start,
+		&alloc_size_bytes,
+		&alloc_uniqtype,
+		&alloc_site
+	);
+	
+	if (__builtin_expect(err != NULL, 0)) return 1; // liballocs has already counted this abort
+	
+	signed target_offset_within_uniqtype = (char*) obj - (char*) alloc_start;
+	/* If we're searching in a heap array, we need to take the offset modulo the
+	 * element size. Otherwise just take the whole-block offset. */
+	if (ALLOC_IS_DYNAMICALLY_SIZED(alloc_start, alloc_site) &&
+		alloc_uniqtype &&
+		alloc_uniqtype->pos_maxoff != 0)
+	{
+		target_offset_within_uniqtype %= alloc_uniqtype->pos_maxoff;
+	}
+	
+	struct uniqtype *cur_obj_uniqtype = alloc_uniqtype;
+	struct uniqtype *cur_containing_uniqtype = NULL;
+	struct uniqtype_rel_info *cur_contained_pos = NULL;
+	
+	/* Descend the subobject hierarchy until our target offset is zero, i.e. we
+	 * find the outermost thing in the subobject tree that starts at the address
+	 * we were passed (obj). */
+	while (target_offset_within_uniqtype != 0)
+	{
+		_Bool success = __liballocs_first_subobject_spanning(
+			&target_offset_within_uniqtype,
+			&cur_obj_uniqtype,
+			&cur_containing_uniqtype,
+			&cur_contained_pos
+		);
+		if (!success) goto like_a_failed;
+	}
+	
+	// trivially, identical types are like one another
+	if (test_uniqtype == cur_obj_uniqtype) goto like_a_succeeded;
+	
+	// arrays are special
+	_Bool matches;
+	if (__builtin_expect(
+		(UNIQTYPE_IS_ARRAY_TYPE(cur_obj_uniqtype) ||
+		 UNIQTYPE_IS_ARRAY_TYPE(test_uniqtype)), 0))
+	{
+		matches =
+			test_uniqtype == cur_obj_uniqtype
+		||  (UNIQTYPE_IS_ARRAY_TYPE(test_uniqtype) && UNIQTYPE_ARRAY_LENGTH(test_uniqtype) == 1
+				&& UNIQTYPE_ARRAY_ELEMENT_TYPE(test_uniqtype) == cur_obj_uniqtype)
+		||  (UNIQTYPE_IS_ARRAY_TYPE(cur_obj_uniqtype) && UNIQTYPE_ARRAY_LENGTH(cur_obj_uniqtype) == 1
+				&& UNIQTYPE_ARRAY_ELEMENT_TYPE(cur_obj_uniqtype) == test_uniqtype);
+		/* We don't need to allow an array of one blah to be like a different
+		 * array of one blah, because they should be the same type. 
+		 * FIXME: there's a difficult case: an array of statically unknown length, 
+		 * which happens to have length 1. */
+		if (matches) goto like_a_succeeded; else goto like_a_failed;
+	}
+	
+	/* We might have base types with signedness complements. */
+	if (!UNIQTYPE_IS_BASE_TYPE(cur_obj_uniqtype) && !UNIQTYPE_IS_BASE_TYPE(test_uniqtype))
+	{
+		/* Does the cur obj type have a signedness complement matching the test type? */
+		if (UNIQTYPE_BASE_TYPE_SIGNEDNESS_COMPLEMENT(cur_obj_uniqtype) == test_uniqtype) goto like_a_succeeded;
+		/* Does the test type have a signedness complement matching the cur obj type? */
+		if (UNIQTYPE_BASE_TYPE_SIGNEDNESS_COMPLEMENT(test_uniqtype) == cur_obj_uniqtype) goto like_a_succeeded;
+	}
+	
+	/* Okay, we can start the like-a test: for each element in the test type,
+	 * do we have a type-equivalent in the object type?
+	 *
+	 * We make an exception for arrays of char (signed or unsigned): if an
+	 * element in the test type is such an array, we skip over any number of
+	 * fields in the object type, until we reach the offset of the end element.
+	*/
+	unsigned i_obj_subobj = 0, i_test_subobj = 0;
+	for (;
+		i_obj_subobj < UNIQTYPE_COMPOSITE_MEMBER_COUNT(cur_obj_uniqtype)
+			 && i_test_subobj < UNIQTYPE_COMPOSITE_MEMBER_COUNT(test_uniqtype);
+		++i_test_subobj, ++i_obj_subobj)
+	{
+		if (__builtin_expect(UNIQTYPE_IS_ARRAY_TYPE(test_uniqtype->related[i_test_subobj].un.memb.ptr)
+			&& (UNIQTYPE_ARRAY_ELEMENT_TYPE(test_uniqtype->related[i_test_subobj].un.memb.ptr)
+					== pointer_to___uniqtype__signed_char
+			|| UNIQTYPE_ARRAY_ELEMENT_TYPE(test_uniqtype->related[i_test_subobj].un.memb.ptr)
+					== pointer_to___uniqtype__unsigned_char), 0))
+		{
+			// we will skip this field in the test type
+			signed target_off =
+				UNIQTYPE_COMPOSITE_MEMBER_COUNT(test_uniqtype) > i_test_subobj + 1
+			 ?  test_uniqtype->related[i_test_subobj + 1].un.memb.off
+			 :  test_uniqtype->related[i_test_subobj].un.memb.off
+			      + test_uniqtype->related[i_test_subobj].un.memb.ptr->pos_maxoff;
+			
+			// ... if there's more in the test type, advance i_obj_subobj
+			while (i_obj_subobj + 1 < UNIQTYPE_COMPOSITE_MEMBER_COUNT(cur_obj_uniqtype) &&
+				cur_obj_uniqtype->related[i_obj_subobj + 1].un.memb.off
+					< target_off) ++i_obj_subobj;
+			/* We fail if we ran out of stuff in the target object type
+			 * AND there is more to go in the test type. */
+			if (i_obj_subobj + 1 >= UNIQTYPE_COMPOSITE_MEMBER_COUNT(cur_obj_uniqtype)
+			 && UNIQTYPE_COMPOSITE_MEMBER_COUNT(test_uniqtype) > i_test_subobj + 1) goto like_a_failed;
+				
+			continue;
+		}
+		matches =
+				test_uniqtype->related[i_test_subobj].un.memb.off == cur_obj_uniqtype->related[i_obj_subobj].un.memb.off
+		 && 	test_uniqtype->related[i_test_subobj].un.memb.ptr == cur_obj_uniqtype->related[i_obj_subobj].un.memb.ptr;
+		if (!matches) goto like_a_failed;
+	}
+	// if we terminated because we ran out of fields in the target type, fail
+	if (i_test_subobj < UNIQTYPE_COMPOSITE_MEMBER_COUNT(test_uniqtype)) goto like_a_failed;
+	
+like_a_succeeded:
+	++__libcrunch_succeeded;
 	return 1;
+	
+	// if we got here, we've failed
+	// if we got here, the check failed
+like_a_failed:
+	if (__currently_allocating || __currently_freeing)
+	{
+		++__libcrunch_failed_in_alloc;
+		// suppress warning
+	}
+	else
+	{
+		++__libcrunch_failed;
+		if (!is_suppressed(UNIQTYPE_NAME(test_uniqtype), __builtin_return_address(0), alloc_uniqtype ? UNIQTYPE_NAME(alloc_uniqtype) : NULL))
+		{
+			if (should_report_failure_at(__builtin_return_address(0)))
+			{
+				/* debug_printf(0, "Failed check __like_a(%p, %p a.k.a. \"%s\")
+				 * at %p (%s), allocation was a %s%s%s originating at %p\n", */ 
+				PRINTD2("Failed check __like_a(%p, %p)", obj, test_uniqtype);
+				PRINTD1("a.k.a \"%s\"", UNIQTYPE_NAME(test_uniqtype));
+				PRINTD2(
+					"at %p (%s)",
+					__builtin_return_address(0),
+					format_symbolic_address(__builtin_return_address(0))
+				);
+				PRINTD2(
+					"allocation was a %s%s",
+					a ? a->name : "(no allocator)",
+					(ALLOC_IS_DYNAMICALLY_SIZED(alloc_start, alloc_site) && alloc_uniqtype && alloc_size_bytes > alloc_uniqtype->pos_maxoff) ? " allocation of " : " "
+				);
+				PRINTD2(
+					"%s originating at %p",
+					NAME_FOR_UNIQTYPE(alloc_uniqtype),
+					alloc_site
+				);
+			}
+		}
+	}
+	return 1; // HACK: so that the program will continue
 }
 
 int __loosely_like_a_internal(const void *obj, const void *r)

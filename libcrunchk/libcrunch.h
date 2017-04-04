@@ -35,11 +35,82 @@
 /*
  * misc
 */
-#define assert(e) ( e ? (void)0 : \
-	__assert_fail(__func__, __FILE__, __LINE__, #e))  // in libcrunch.c
-
+extern void __assert_fail(
+	const char *__assertion,
+	const char *__file,
+	unsigned int __line,
+	const char *__function
+);
+#define __liballocs_private_assert(cond, reason, f, l, fn) \
+	(cond ? (void)0 : __assert_fail(reason, f, l, fn))
+#define assert(e) (e ? (void)0 : \
+	__assert_fail(#e, __FILE__, __LINE__, __func__))  // in libcrunch.c
 
 #define NULL 0
+
+
+/*
+ * liballocs - structs
+*/
+#define ALLOC_IS_DYNAMICALLY_SIZED(all, as) ((all) != (as))
+
+/* err structs */
+struct liballocs_err
+{
+	const char *message;
+};
+typedef struct liballocs_err *liballocs_err_t;
+extern struct liballocs_err __liballocs_err_not_impl;
+extern struct liballocs_err __liballocs_err_abort;
+extern struct liballocs_err __liballocs_err_stack_walk_step_failure;
+extern struct liballocs_err __liballocs_err_stack_walk_reached_higher_frame ;
+extern struct liballocs_err __liballocs_err_stack_walk_reached_top_of_stack ;
+extern struct liballocs_err __liballocs_err_unknown_stack_walk_problem ;
+extern struct liballocs_err __liballocs_err_unindexed_heap_object;
+extern struct liballocs_err __liballocs_err_unrecognised_alloc_site;
+extern struct liballocs_err __liballocs_err_unrecognised_static_object;
+extern struct liballocs_err __liballocs_err_object_of_unknown_storage;
+
+/* counters */
+extern unsigned long __liballocs_aborted_stack;
+extern unsigned long __liballocs_aborted_static;
+extern unsigned long __liballocs_aborted_unknown_storage;
+extern unsigned long __liballocs_hit_heap_case;
+extern unsigned long __liballocs_hit_stack_case;
+extern unsigned long __liballocs_hit_static_case;
+extern unsigned long __liballocs_aborted_unindexed_heap;
+extern unsigned long __liballocs_aborted_unrecognised_allocsite;
+
+#define WORD_BITSIZE ((sizeof (void*))<<3)
+#if defined(__x86_64__) || defined(x86_64)
+#define ADDR_BITSIZE 48
+#else
+#define ADDR_BITSIZE WORD_BITSIZE
+#endif
+
+struct entry
+{
+	unsigned present:1;
+	unsigned removed:1;  /* whether this link is in the "removed" state in Harris's algorithm */
+	unsigned distance:6; /* distance from the base of this entry's region, in 8-byte units */
+} __attribute__((packed));
+
+struct ptrs
+{
+	struct entry next;
+	struct entry prev;
+} __attribute__((packed));
+
+struct insert
+{
+	unsigned alloc_site_flag:1;  // If true, alloc_site is the uniqtype
+	unsigned long alloc_site:(ADDR_BITSIZE-1);
+	/* union  __attribute__((packed)) */
+	/* { */
+	/* 	struct ptrs ptrs; */
+	/* 	unsigned bits:16; */
+	/* } un; */
+} __attribute__((packed));
 
 
 /*
@@ -65,7 +136,12 @@ fun(struct uniqtype *  ,get_type,      arg(void *, obj)) /* what type? */ \
 fun(void *             ,get_base,      arg(void *, obj))  /* base address? */ \
 fun(unsigned long      ,get_size,      arg(void *, obj))  /* size? */ \
 fun(const void *       ,get_site,      arg(void *, obj))  /* where allocated?   optional   */ \
-/* fun(liballocs_err_t    ,get_info,      arg(void *, obj), arg(struct big_allocation *, maybe_alloc), arg(struct uniqtype **,out_type), arg(void **,out_base), arg(unsigned long*,out_size), arg(const void**, out_site)) \ */ \
+fun(struct liballocs_err *	,get_info, arg(void *, obj), \
+									   /* arg(struct big_allocation *, maybe_alloc), \ */ \
+									   arg(struct uniqtype **, out_type), \
+									   arg(void **, out_base), \
+									   arg(unsigned long*, out_size), \
+									   arg(const void**, out_site)) \
 /* fun(struct big_allocation *,ensure_big,arg(void *, obj)) \ */ \
 /* fun(Dl_info            ,dladdr,        arg(void *, obj))  /1* dladdr-like -- only for static *1/ \ */ \
 /* fun(lifetime_policy_t *,get_lifetime,  arg(void *, obj)) \ */ \
@@ -90,51 +166,15 @@ struct allocator
 extern int __currently_allocating;
 extern int __currently_freeing;
 
+extern struct allocator __generic_malloc_allocator;
+
 
 /*
- * liballocs
+ * liballocs - functions
 */
-#define ALLOC_IS_DYNAMICALLY_SIZED(all, as) ((all) != (as))
 
-/* structs */
-struct liballocs_err
-{
-	const char *message;
-};
-typedef struct liballocs_err *liballocs_err_t;
+inline void __liballocs_ensure_init(void);
 
-#define WORD_BITSIZE ((sizeof (void*))<<3)
-#if defined(__x86_64__) || defined(x86_64)
-#define ADDR_BITSIZE 48
-#else
-#define ADDR_BITSIZE WORD_BITSIZE
-#endif
-
-struct entry
-{
-	unsigned present:1;
-	unsigned removed:1;  /* whether this link is in the "removed" state in Harris's algorithm */
-	unsigned distance:6; /* distance from the base of this entry's region, in 8-byte units */
-} __attribute__((packed));
-
-struct ptrs
-{
-	struct entry next;
-	struct entry prev;
-} __attribute__((packed));
-
-struct insert
-{
-	unsigned alloc_site_flag:1;
-	unsigned long alloc_site:(ADDR_BITSIZE-1);
-	union  __attribute__((packed))
-	{
-		struct ptrs ptrs;
-		unsigned bits:16;
-	} un;
-} __attribute__((packed));
-
-/* Functions */
 inline struct liballocs_err *__liballocs_get_alloc_info(
 	const void *obj,
 	struct allocator **out_allocator,
@@ -142,6 +182,13 @@ inline struct liballocs_err *__liballocs_get_alloc_info(
 	unsigned long *out_alloc_size_bytes,
 	struct uniqtype **out_alloc_uniqtype,
 	const void **out_alloc_site
+);
+
+struct insert *lookup_object_info(
+	const void *mem,
+	void **out_object_start,
+	size_t *out_object_size
+	/* void **ignored */
 );
 
 struct insert *__liballocs_get_insert(const void *mem);
@@ -161,4 +208,41 @@ inline _Bool __liballocs_find_matching_subobject(
 	struct uniqtype_rel_info **p_cur_contained_pos
 );
 
-inline void __liballocs_ensure_init(void);
+extern inline _Bool
+/* __attribute__((always_inline,gnu_inline)) */
+__liballocs_first_subobject_spanning(
+	signed *p_target_offset_within_uniqtype,
+	struct uniqtype **p_cur_obj_uniqtype,
+	struct uniqtype **p_cur_containing_uniqtype,
+	struct uniqtype_rel_info **p_cur_contained_pos
+);
+
+const char *format_symbolic_address(const void *addr);
+
+extern inline
+struct allocator *(__attribute__((always_inline,gnu_inline))
+__liballocs_leaf_allocator_for) (
+	const void *obj
+	/* struct big_allocation **out_containing_bigalloc, */
+	/* struct big_allocation **out_maybe_the_allocation */
+);
+
+void __liballocs_report_wild_address(const void *ptr);
+
+struct tagged_uniqtype {
+	const void *allocsite;
+	struct uniqtype *type;
+};
+#define ALLOCSITE_ARRAY_SPACES (1 << 16)
+#define ALLOCSITE_ARRAY_INDEX(as) \
+	((unsigned long) as ) & (ALLOCSITE_ARRAY_SPACES - 1)
+#define ALLOCSITE_IS_RECOGNISED(as) \
+	(tagged_uniqtype_array[ALLOCSITE_ARRAY_INDEX(allocsite)].allocsite == as)
+extern struct tagged_uniqtype tagged_uniqtype_array[ALLOCSITE_ARRAY_SPACES];
+// TODO proper storage
+// given allocsite, get the uniqtype
+extern inline
+struct uniqtype * __attribute__((gnu_inline))
+allocsite_to_uniqtype(const void *allocsite);
+
+_Bool __liballocs_notify_unindexed_address(const void *);

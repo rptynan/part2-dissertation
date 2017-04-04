@@ -15,7 +15,7 @@ COMPILER=""
 INSTALL_REBOOT=false
 
 KERNFAST="-DKERNFAST"
-DEBUG_FLAGS=0
+DEBUG_VALUE=0
 while (( $# > 0 )); do
 	key="$1"
 	case $key in
@@ -33,7 +33,7 @@ while (( $# > 0 )); do
 			KERNFAST=""
 			;;
 		-d|--debug)
-			DEBUG_FLAGS=1
+			DEBUG_VALUE=1
 			;;
 		-h|--help|*)
 			print_usage
@@ -42,7 +42,8 @@ while (( $# > 0 )); do
 	esac
 	shift
 done
-DEBUG_FLAGS="-DDEBUG_CIL_INLINES=$DEBUG_FLAGS -DDEBUG_STUBS=$DEBUG_FLAGS"
+DEBUG_FLAGS="-DDEBUG_CIL_INLINES=$DEBUG_VALUE -DDEBUG_STUBS=$DEBUG_VALUE"
+[[ $DEBUG_VALUE == 0 ]] && DEBUG_FLAGS+=" -DNDEBUG"
 
 if $GOOD_KERNEL; then
 	if [ $(md5 -q /boot/kernel/kernel) == $(md5 -q /boot/kernel.good/kernel) ]; then
@@ -60,12 +61,12 @@ if [[ ! -z $COMPILER ]]; then
 	case $COMPILER in
 		"gcc")
 			CC="/usr/local/bin/gcc -gdwarf-3 -gdwarf-2 "
-			CC+="-D_MM_MALLOC_H_INCLUDED $debug_flags"
+			CC+="-D_MM_MALLOC_H_INCLUDED $DEBUG_FLAGS"
 			;;
 		"crunchcc")
 			CC="/usr/local/src/libcrunch/frontend/c/bin/crunchcc "
 			CC+="-gdwarf-3 -gdwarf-2 -D_MM_MALLOC_H_INCLUDED "
-			CC+="--useLogicalOperators -DKTR $debug_flags"
+			CC+="--useLogicalOperators -DKTR $DEBUG_FLAGS"
 			;;
 		*)
 			echo "Compiler '$COMPILER' not recognised"
@@ -87,6 +88,9 @@ if [[ ! -z $COMPILER ]]; then
 fi
 
 if $INSTALL_REBOOT; then
+	[ ! $GOOD_KERNEL ] && \
+		echo -n "Warning, haven't copied good kernel! " && \
+		echo "Might not be able to boot if kernel is bad!"
 	echo "Installing"
 	make installkernel KERNCONF=CRUNCHED 1> ~/log 2> ~/errorlog
 	if [[ $? != 0 ]]; then

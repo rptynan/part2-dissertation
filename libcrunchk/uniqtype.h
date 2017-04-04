@@ -1,5 +1,27 @@
 struct uniqtype;
 
+/* Special uniqtypes from liballocs_private.h */
+extern struct uniqtype *pointer_to___uniqtype__void __attribute__((visibility("hidden")));
+extern struct uniqtype *pointer_to___uniqtype__signed_char __attribute__((visibility("hidden")));
+extern struct uniqtype *pointer_to___uniqtype__unsigned_char __attribute__((visibility("hidden")));
+extern struct uniqtype *pointer_to___uniqtype____PTR_signed_char __attribute__((visibility("hidden")));
+extern struct uniqtype *pointer_to___uniqtype____PTR___PTR_signed_char __attribute__((visibility("hidden")));
+extern struct uniqtype *pointer_to___uniqtype__Elf64_auxv_t __attribute__((visibility("hidden")));
+extern struct uniqtype *pointer_to___uniqtype____ARR0_signed_char __attribute__((visibility("hidden")));
+extern struct uniqtype *pointer_to___uniqtype__intptr_t __attribute__((visibility("hidden")));
+
+/* uniqtypes-defs.h */
+enum uniqtype_kind {
+	VOID,
+	ARRAY = 0x1,
+	BASE = 0x2,
+	ENUMERATION = 0x4,
+	COMPOSITE = 0x6,
+	ADDRESS = 0x8,
+	SUBPROGRAM = 0xa,
+	SUBRANGE = 0xc
+};
+
 /* For a struct, we have at least three fields: name, offset, type. 	 */
 /* In fact we might want *more* than that: a flag to say whether it's an */
 /* offset or an absolute address (to encode the mcontext case). HMM.	 */
@@ -112,8 +134,52 @@ struct uniqtype
    struct uniqtype_rel_info related[];
 };
 
-#define UNIQTYPE_NAME(u) __liballocs_uniqtype_name(u) /* helper in liballocs.c */
-#define NAME_FOR_UNIQTYPE(u) UNIQTYPE_NAME(u)
 #define UNIQTYPE_POS_MAXOFF_UNBOUNDED ((1ul << (8*sizeof(unsigned int)))-1) /* UINT_MAX */
+#define UNIQTYPE_ARRAY_LENGTH_UNBOUNDED ((1u<<31)-1)
+
+#define UNIQTYPE_IS_SUBPROGRAM_TYPE(u)   ((u)->un.info.kind == SUBPROGRAM)
+#define UNIQTYPE_SUBPROGRAM_ARG_COUNT(u) ((u)->un.subprogram.narg)
+#define UNIQTYPE_IS_POINTER_TYPE(u)      ((u)->un.info.kind == ADDRESS)
+#define UNIQTYPE_POINTEE_TYPE(u)         (UNIQTYPE_IS_POINTER_TYPE(u) ? (u)->related[0].un.t.ptr : (void*)0)
+#define UNIQTYPE_IS_ARRAY_TYPE(u)        ((u)->un.array.is_array)
+#define UNIQTYPE_IS_COMPOSITE_TYPE(u)    ((u)->un.info.kind == COMPOSITE)
+#define UNIQTYPE_HAS_SUBOBJECTS(u)       (UNIQTYPE_IS_COMPOSITE_TYPE(u) || UNIQTYPE_IS_ARRAY_TYPE(u))
+#define UNIQTYPE_HAS_KNOWN_LENGTH(u)     ((u)->pos_maxoff != UINT_MAX)
+#define UNIQTYPE_IS_BASE_TYPE(u)         ((u)->un.info.kind == BASE)
+#define UNIQTYPE_IS_ENUM_TYPE(u)         ((u)->un.info.kind == ENUMERATION)
+#define UNIQTYPE_IS_BASE_OR_ENUM_TYPE(u) (UNIQTYPE_IS_BASE_TYPE(u) || UNIQTYPE_IS_ENUM_TYPE(u))
+#define UNIQTYPE_ARRAY_LENGTH(u)         (UNIQTYPE_IS_ARRAY_TYPE(u) ? (u)->un.array.nelems : -1)
+#define UNIQTYPE_ARRAY_ELEMENT_TYPE(u)   (UNIQTYPE_IS_ARRAY_TYPE(u) ? (u)->related[0].un.t.ptr : (struct uniqtype*)0)
+#define UNIQTYPE_COMPOSITE_MEMBER_COUNT(u) (UNIQTYPE_IS_COMPOSITE_TYPE(u) ? (u)->un.composite.nmemb : 0)
+#define UNIQTYPE_IS_2S_COMPL_INTEGER_TYPE(u) \
+   ((u)->un.info.kind == BASE && (u)->un.base.enc == 0x5 /*DW_ATE_signed */)
+#define UNIQTYPE_BASE_TYPE_SIGNEDNESS_COMPLEMENT(u) \
+   (((u)->un.info.kind == BASE && \
+       ((u)->un.base.enc == 0x5 /* DW_ATE_signed */ || ((u)->un.base.enc == 0x7 /* DW_ATE_unsigned */))) ? \
+	    (u)->related[0].un.t.ptr : (struct uniqtype *)0)
+#define UNIQTYPE_NAME(u) __liballocs_uniqtype_name(u) /* helper in liballocs.c */
+#define UNIQTYPE_SYMBOL_NAME(u) __liballocs_uniqtype_symbol_name(u) /* helper in liballocs.c */
+#define UNIQTYPE_IS_SANE(u) ( \
+	((u)->un.array.is_array && ((u)->un.array.nelems == 0 || (u)->pos_maxoff > 0)) \
+	|| ((u)->un.info.kind == VOID && (u)->pos_maxoff == 0) \
+	|| ((u)->un.info.kind == BASE && (u)->un.base.enc != 0) \
+	|| ((u)->un.info.kind == ENUMERATION && 1 /* FIXME */) \
+	|| ((u)->un.info.kind == COMPOSITE && ((u)->pos_maxoff <= 1 || (u)->un.composite.nmemb > 0)) \
+	|| ((u)->un.info.kind == ADDRESS && 1 /* FIXME */) \
+	|| ((u)->un.info.kind == SUBRANGE && 1 /* FIXME */) \
+	|| ((u)->un.info.kind == SUBPROGRAM && (u)->related[0].un.t.ptr != NULL) \
+	)
+#define NAME_FOR_UNIQTYPE(u) UNIQTYPE_NAME(u)
+#define UNIQTYPE_BASE_TYPE_BIT_SIZE(u)         (((u)->un.info.kind != BASE) ? 0 : \
+                                                   8*(u)->pos_maxoff - ( \
+                                                  ( (u)->un.base.one_plus_log_bit_size_delta ? \
+                                                    1ul<<((u)->un.base.one_plus_log_bit_size_delta - 1) \
+                                                    : 0 ) + (u)->un.base.bit_size_delta_delta \
+                                                  ) )
+#define UNIQTYPE_BASE_TYPE_BIT_OFFSET(u)         (((((u)->un.info.kind != BASE) ? 0 : \
+                                           (((u)->un.base.bit_off) < 0) ? \
+                                                    (8*((u)->pos_maxoff) - (-((u)->un.base.bit_off))) \
+                                                       : (u)->un.base.bit_off)))
+
 
 extern struct allocator __generic_malloc_allocator;
