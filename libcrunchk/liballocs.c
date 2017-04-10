@@ -184,7 +184,7 @@ extern inline _Bool __liballocs_find_matching_subobject(
 }
 
 /* stolen from libkern, not sure if necessary to avoid outside calls? */
-int strncmp(const char *s1, const char *s2, size_t n)
+static int strncmp(const char *s1, const char *s2, size_t n)
 {
 	if (n == 0)
 		return (0);

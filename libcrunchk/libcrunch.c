@@ -1,5 +1,5 @@
 #include <libcrunchk/libcrunch.h>
-#if _KERNEL
+#ifdef _KERNEL
   // CTASSERT, for sysctl
   #include <sys/cdefs.h>
   #include <sys/param.h>
@@ -26,7 +26,7 @@ void __assert_fail(
 
 /* Counters, macro will define the unsigned long to store the value and then
  * define a sysctl MIB under the debug.libcrunch parent node */
-#if _KERNEL
+#ifdef _KERNEL
   static SYSCTL_NODE(
 	_debug, OID_AUTO, libcrunch, CTLFLAG_RD, 0, "libcrunch stats"
   );

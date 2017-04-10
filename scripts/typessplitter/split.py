@@ -98,7 +98,7 @@ for i in range(1, split_num + 1):
     uniqtypes = uniqtypes[per_file:]
 
     with open('types{}.c'.format(i), 'w') as f:
-        f.write('#include <sys/typesheader.h>\n\n')
+        f.write('#include <libcrunchk/types/typesheader.h>\n\n')
         f.write(output)
 
 
@@ -106,7 +106,7 @@ with open('typesheader.h', 'w') as f:
     f.write(header)
 
 with open('typesstack.c', 'w') as f:
-    f.write('#include <sys/typesheader.h>\n\n')
+    f.write('#include <libcrunchk/types/typesheader.h>\n\n')
     f.write(stacktypes)
     f.write('\n\n')
     f.write(allocstuff)
