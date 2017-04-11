@@ -157,27 +157,10 @@ struct __libcrunch_cache
 _Bool __libcrunch_is_initialized = 0;
 extern _Bool our_init_flag __attribute__(
 	(visibility("hidden"), alias("__libcrunch_is_initialized"))
-);
+); // necessary?
 
 struct __libcrunch_cache __libcrunch_is_a_cache; // all zeroes
 
-void __liballocs_systrap_init(void)
-{
-	PRINTD("__liballocs_systrap_init");
-	return;
-}
-static void init(void) __attribute__((constructor));
-static void init(void)
-{
-	PRINTD("init");
-	/* It's critical that we detect whether we're being overridden,
-	 * and skip this init if so. The preload code in liballocs wants to
-	 * initialise systrap *only* after it has scanned /proc/self/maps,
-	 * so that it can accurately track mmappings. To test for overriddenness,
-	 * we use a hidden alias for something that will be overridden by our
-	 * overrider, here the init flag. */
-	if (&__libcrunch_is_initialized == &our_init_flag) __liballocs_systrap_init();
-}
 
 void __libcrunch_scan_lazy_typenames(void *blah)
 {
@@ -272,28 +255,27 @@ int __is_a_internal(const void *obj, const void *arg)
 
 	// Hack for simplicity, if the type hasn't been set by the allocation,
 	// we assume it's this type, and try again.
+	unsigned long ind = ALLOCSITE_ARRAY_INDEX(alloc_site);
 	if (unlikely(err != NULL && alloc_site &&
-		!tagged_uniqtype_array[ALLOCSITE_ARRAY_INDEX(alloc_site)].type)
+		!tagged_uniqtype_array[ind].type)
 	) {
 		PRINTD1(
 			"__is_a_internal, setting type to first check: allocsite %p",
 			alloc_site
 		);
-		PRINTD2(
-			"... index %u, type %p",
-			ALLOCSITE_ARRAY_INDEX(alloc_site),
-			test_uniqtype
-		);
-		tagged_uniqtype_array[ALLOCSITE_ARRAY_INDEX(alloc_site)].type =
-			test_uniqtype;
-		err = __liballocs_get_alloc_info(
-			obj,
-			&a,
-			&alloc_start,
-			&alloc_size_bytes,
-			&alloc_uniqtype,
-			&alloc_site
-		);
+		if (tagged_uniqtype_array[ind].allocsite == alloc_site) {
+			PRINTD2("... index %u, type %p", ind, test_uniqtype);
+			tagged_uniqtype_array[ind].type =
+				test_uniqtype;
+			err = __liballocs_get_alloc_info(
+				obj,
+				&a,
+				&alloc_start,
+				&alloc_size_bytes,
+				&alloc_uniqtype,
+				&alloc_site
+			);
+		}
 	}
 
 	if (__builtin_expect(err != NULL, 0)) {
@@ -596,6 +578,7 @@ like_a_succeeded:
 like_a_failed:
 	if (__currently_allocating || __currently_freeing)
 	{
+		PRINTD("__is_a_internal, failed in alloc");
 		++__libcrunch_failed_in_alloc;
 		// suppress warning
 	}

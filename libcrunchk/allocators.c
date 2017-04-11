@@ -188,8 +188,8 @@ struct allocator __generic_malloc_allocator = {
  * malloc wrappers
 */
 
-int __currently_freeing;  // TODO
-int __currently_allocating;
+int __currently_freeing = 0;  // TODO
+int __currently_allocating = 0;
 
 /* The real malloc function, sig taken from malloc(9) man page */
 void *__real_malloc(unsigned long size, struct malloc_type *type, int flags);
@@ -200,11 +200,9 @@ void *__wrap_malloc(unsigned long size, struct malloc_type *type, int flags)
 	PRINTD1("malloc called, size: %u", size);
 	if (!type) PRINTD("malloc, no type!");
 	else PRINTD1("malloc called, type: %s", type->ks_shortdesc);
+	PRINTD1("malloc __currently_allocating = %u", __currently_allocating);
 
-	// Keep track of if we're first to set currently_allocating...
-	_Bool set_currently_allocating = !__currently_allocating;
-	__currently_allocating = 1;
-
+	__currently_allocating++;
 	void *ret;
 	ret = __real_malloc(size, type, flags);
 	if (ret) {
@@ -221,8 +219,7 @@ void *__wrap_malloc(unsigned long size, struct malloc_type *type, int flags)
 		tagged_uniqtype_array[i].allocsite = caller;
 		tagged_uniqtype_array[i].type = NULL;  // is_aU() first call sets this
 	}
-	// ...and only unset it if that's the case
-	if (set_currently_allocating) __currently_allocating = 0;
+	__currently_allocating--;
 	PRINTD1("malloc returning: %p", ret);
 	return ret;
 }

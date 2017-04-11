@@ -342,6 +342,8 @@ allocsite_to_uniqtype(const void *allocsite)
 	PRINTD1("allocsite_to_uniqtype: %p", allocsite);
 	if (!allocsite) return NULL;
 	unsigned long i = ALLOCSITE_ARRAY_INDEX(allocsite);
+	/* PRINTD1("***allocsite: %p", tagged_uniqtype_array[i].allocsite); */
+	/* PRINTD1("***uniqtype: %p", tagged_uniqtype_array[i].type); */
 	if (tagged_uniqtype_array[i].allocsite == allocsite)
 		return tagged_uniqtype_array[i].type;  // can be null
 	return NULL;

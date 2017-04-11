@@ -81,12 +81,7 @@ extern unsigned long __liballocs_hit_static_case;
 extern unsigned long __liballocs_aborted_unindexed_heap;
 extern unsigned long __liballocs_aborted_unrecognised_allocsite;
 
-#define WORD_BITSIZE ((sizeof (void*))<<3)
-#if defined(__x86_64__) || defined(x86_64)
 #define ADDR_BITSIZE 48
-#else
-#define ADDR_BITSIZE WORD_BITSIZE
-#endif
 
 struct entry
 {
@@ -104,13 +99,14 @@ struct ptrs
 struct insert
 {
 	unsigned alloc_site_flag:1;  // If true, alloc_site is the uniqtype
-	unsigned long alloc_site:(ADDR_BITSIZE-1);
+	/* unsigned long *alloc_site:ADDR_BITSIZE; */
+	unsigned long alloc_site;
 	/* union  __attribute__((packed)) */
 	/* { */
 	/* 	struct ptrs ptrs; */
 	/* 	unsigned bits:16; */
 	/* } un; */
-} __attribute__((packed));
+} ;//__attribute__((packed));
 
 
 /*
