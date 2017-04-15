@@ -2,10 +2,13 @@
 #define LIBCRUNCH_H
 
 #include <sys/types.h>
+#include <sys/malloc.h>
 
 #ifndef NULL
 #define NULL 0
 #endif
+
+void *__real_malloc(unsigned long size, struct malloc_type *type, int flags);
 
 /* Debug printouts */
 #if DEBUG_STUBS == 1
@@ -34,9 +37,7 @@
   } while (0)
 
 
-/*
- * libcrunch_cil_inlines.h
-*/
+/* libcrunch_cil_inlines.h */
 #ifndef unlikely
 #define __libcrunch_defined_unlikely
 #define unlikely(cond) (__builtin_expect( (cond), 0 ))
