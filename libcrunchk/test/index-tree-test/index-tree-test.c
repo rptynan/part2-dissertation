@@ -1,27 +1,61 @@
 #include "../../include/index_tree.h"
-/* #include <stdlib.h> */
 #include <assert.h>
 #include <stdio.h>
+
+void *malloc(unsigned long size, struct malloc_type *type, int flags);
+
+struct my_data {
+	int x;
+};
+
+int my_compare(void *a, void *b) {
+	struct my_data *aa = (struct my_data *) a;
+	struct my_data *bb = (struct my_data *) b;
+	if (aa->x < bb->x) return -1;
+	if (aa->x > bb->x) return 1;
+	return 0;
+}
+
+void printstuff(void *a) {
+	struct my_data *aa = (struct my_data *) a;
+	printf("traverse: %d\n", aa->x);
+}
 
 
 int main() {
 	struct itree_node *root = NULL;
 
-	for (int i = 0; i < 1000; i++) {
+	struct my_data *p;
+	for (int i = 0; i < 100; i++) {
 		// Insert numbers in range [200, 1200)
-		root = itree_insert(root, rand() % 1000 + 200);
+		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
+		p->x = rand() % 1000 + 200;
+		root = itree_insert(root, p, my_compare);
 		// Insert numbers in range [1300, 2300)
-		root = itree_insert(root, rand() % 1000 + 1300);
+		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
+		p->x = rand() % 1000 + 1300;
+		root = itree_insert(root, p, my_compare);
 	}
 	// We'll look for these (so they're definitely only in there once)
-	root = itree_insert(root, 42);
-	root = itree_insert(root, 1242);
-	root = itree_insert(root, 2442);
+	p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
+	p->x = 42;
+	root = itree_insert(root, p, my_compare);
+	p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
+	p->x = 1242;
+	root = itree_insert(root, p, my_compare);
+	p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
+	p->x = 2442;
+	root = itree_insert(root, p, my_compare);
 
 	// Test find
-	assert(itree_find(root, 42)->value == 42);
-	assert(itree_find(root, 1242)->value == 1242);
-	assert(itree_find(root, 2442)->value == 2442);
+	struct my_data q;
+	q.x = 42;
+	/* printf("%p\n", itree_find(root, &q, my_compare)); */
+	assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == 42);
+	q.x = 1242;
+	assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == 1242);
+	q.x = 2442;
+	assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == 2442);
 
 	return 0;
 }

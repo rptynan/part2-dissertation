@@ -10,14 +10,18 @@
 
 void *__real_malloc(unsigned long size, struct malloc_type *type, int flags);
 
-/* Debug printouts */
+/* Debug printouts
+ * 1 will cause issues if run in any part of the kernel which could cause a loop
+ * 2 is only for userspace testing
+ * otherwise we have no debug printouts
+*/
 #if DEBUG_STUBS == 1
   #include <sys/ktr.h>
   #define PRINTD(x) CTR0(KTR_PTRACE, x)
   #define PRINTD1(f, x) CTR1(KTR_PTRACE, f, x)
   #define PRINTD2(f, x1, x2) CTR2(KTR_PTRACE, f, x1, x2)
 #elif DEBUG_STUBS == 2
-  extern int printf(const char* format, ... );
+  #include <stdio.h>
   #define PRINTD(x) printf(x "\n")
   #define PRINTD1(f, x) printf(f "\n", x)
   #define PRINTD2(f, x1, x2) printf(f "\n", x1, x2)
