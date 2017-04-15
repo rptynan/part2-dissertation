@@ -1,3 +1,6 @@
+#ifndef UNIQTYPE_H
+#define UNIQTYPE_H
+
 struct uniqtype;
 
 /* Special uniqtypes from liballocs_private.h */
@@ -181,5 +184,4 @@ struct uniqtype
                                                     (8*((u)->pos_maxoff) - (-((u)->un.base.bit_off))) \
                                                        : (u)->un.base.bit_off)))
 
-
-extern struct allocator __generic_malloc_allocator;
+#endif /* UNIQTYPE_H */

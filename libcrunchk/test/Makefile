@@ -1,12 +1,13 @@
 LIBALLOCS_BASE = /usr/local/src/liballocs
 LIBCRUNCH_BASE := /usr/local/src/libcrunch
 
-CRUNCHCC = $(LIBCRUNCH_BASE)/frontend/c/bin/crunchcc
+# CRUNCHCC = $(LIBCRUNCH_BASE)/frontend/c/bin/crunchcc
+CRUNCHCC = /usr/bin/gcc
 PLAIN_CC = /usr/bin/gcc
 DUMPTYPES = $(LIBALLOCS_BASE)/tools/dumptypes
 
-PLAIN_OBJS = libcrunch.o liballocs.o allocators.o
-W_FLAGS = -Wall -Wno-format
+PLAIN_OBJS = libcrunch.o liballocs.o pageindex.o generic_malloc.o
+W_FLAGS = -Wall -Wno-format -std=gnu11
 DEBUG_FLAGS = -DDEBUG_CIL_INLINES=2 -DDEBUG_STUBS=2 -DNDEBUG -g
 
 
@@ -14,6 +15,9 @@ default: all
 
 test.o: test.c
 	$(CRUNCHCC) $^ -c -o $@ $(DEBUG_FLAGS) $(W_FLAGS)
+
+%.o: ../allocators/%.c
+	$(PLAIN_CC) $^ -I../.. -c -o $@ $(DEBUG_FLAGS) $(W_FLAGS)
 
 %.o: ../%.c
 	$(PLAIN_CC) $^ -I../.. -c -o $@ $(DEBUG_FLAGS) $(W_FLAGS)

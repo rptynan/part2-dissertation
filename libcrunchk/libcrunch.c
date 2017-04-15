@@ -1,4 +1,6 @@
-#include <libcrunchk/libcrunch.h>
+#include <libcrunchk/include/liballocs.h>
+#include <libcrunchk/include/allocmeta.h>
+#include <libcrunchk/include/pageindex.h>
 #ifdef _KERNEL
   // CTASSERT, for sysctl
   #include <sys/cdefs.h>
@@ -54,7 +56,6 @@ LIBCRUNCH_COUNTER(created_invalid_pointer);
 LIBCRUNCH_COUNTER(checked_pointer_adjustments);
 LIBCRUNCH_COUNTER(primary_secondary_transitions);
 LIBCRUNCH_COUNTER(fault_handler_fixups);
-/* added from libcrunch.c */
 LIBCRUNCH_COUNTER(lazy_heap_type_assignment);
 LIBCRUNCH_COUNTER(failed_in_alloc);
 
@@ -209,12 +210,12 @@ int __libcrunch_global_init(void)
 
 int __libcrunch_check_init(void)
 {
-	if (unlikely(! &__libcrunch_is_initialized))
-	{
-		/* This means that we're not linked with libcrunch. 
-		 * There's nothing we can do! */
-		return -1;
-	}
+	/* if (unlikely(! &__libcrunch_is_initialized)) */
+	/* { */
+	/* 	/1* This means that we're not linked with libcrunch. */ 
+	/* 	 * There's nothing we can do! *1/ */
+	/* 	return -1; */
+	/* } */
 	if (unlikely(!__libcrunch_is_initialized))
 	{
 		/* This means we haven't initialized.
@@ -255,28 +256,29 @@ int __is_a_internal(const void *obj, const void *arg)
 
 	// Hack for simplicity, if the type hasn't been set by the allocation,
 	// we assume it's this type, and try again.
-	unsigned long ind = ALLOCSITE_ARRAY_INDEX(alloc_site);
-	if (unlikely(err != NULL && alloc_site &&
-		!tagged_uniqtype_array[ind].type)
-	) {
-		PRINTD1(
-			"__is_a_internal, setting type to first check: allocsite %p",
-			alloc_site
-		);
-		if (tagged_uniqtype_array[ind].allocsite == alloc_site) {
-			PRINTD2("... index %u, type %p", ind, test_uniqtype);
-			tagged_uniqtype_array[ind].type =
-				test_uniqtype;
-			err = __liballocs_get_alloc_info(
-				obj,
-				&a,
-				&alloc_start,
-				&alloc_size_bytes,
-				&alloc_uniqtype,
-				&alloc_site
-			);
-		}
-	}
+	// TODO
+	/* unsigned long ind = ALLOCSITE_ARRAY_INDEX(alloc_site); */
+	/* if (unlikely(err != NULL && alloc_site && */
+	/* 	!tagged_uniqtype_array[ind].type) */
+	/* ) { */
+	/* 	PRINTD1( */
+	/* 		"__is_a_internal, setting type to first check: allocsite %p", */
+	/* 		alloc_site */
+	/* 	); */
+	/* 	if (tagged_uniqtype_array[ind].allocsite == alloc_site) { */
+	/* 		PRINTD2("... index %u, type %p", ind, test_uniqtype); */
+	/* 		tagged_uniqtype_array[ind].type = */
+	/* 			test_uniqtype; */
+	/* 		err = __liballocs_get_alloc_info( */
+	/* 			obj, */
+	/* 			&a, */
+	/* 			&alloc_start, */
+	/* 			&alloc_size_bytes, */
+	/* 			&alloc_uniqtype, */
+	/* 			&alloc_site */
+	/* 		); */
+	/* 	} */
+	/* } */
 
 	if (__builtin_expect(err != NULL, 0)) {
 		PRINTD1(
@@ -436,10 +438,16 @@ int __is_a_internal(const void *obj, const void *arg)
 	return 1; // HACK: so that the program will continue
 }
 
-/* Optimised version, for when you already know the uniqtype address. */
+/* Basically __like_a() does a structural match -- it unwraps the test type one
+ * level and checks the fields against each other. If you set
+ * LIBCRUNCH_USE_LIKE_A_FOR_TYPES="T S" it will use this function instead for
+ * casts to S* and T*. It's only needed for sloppy C code that expects to do
+ * structural subtyping-like tricks.
+*/
 int __like_a_internal(const void *obj, const void *arg)
 {
 	PRINTD("__like_a_internal");
+	return 1; // TODO ignoring for now as may not be strictly necessary?
 	// FIXME: use our recursive subobject search here? HMM -- semantics are non-obvious.
 	
 	/* We might not be initialized yet (recall that __libcrunch_global_init is 
@@ -620,18 +628,26 @@ int __loosely_like_a_internal(const void *obj, const void *r)
 	return 1;
 }
 
+/* This is called to check casts to a user-defined type that has
+ * been declared, but not defined, in that compilation unit. I.e. The type is
+ * opaque, so it just checks that the pointer is pointing to an instance of
+ * that type name.
+*/
 int __named_a_internal(const void *obj, const void *r)
 {
 	PRINTD("__named_a_internal");
 	return 1;
 }
 
+
+/* Checking function arguments' types? */
 int __check_args_internal(const void *obj, int nargs, ...)
 {
 	PRINTD("__check_args_internal");
 	return 1;
 }
 
+/* is_a_internal but for function pointer casts */
 int __is_a_function_refining_internal(const void *obj, const void *r)
 {
 	PRINTD("__is_a_function_refining_internal");
@@ -643,6 +659,7 @@ int __is_a_pointer_of_degree_internal(const void *obj, int d)
 	PRINTD("__is_a_pointer_of_degree_internal");
 	return 1;
 }
+
 int __can_hold_pointer_internal(const void *obj, const void *target)
 {
 	PRINTD("__can_hold_pointer_internal");

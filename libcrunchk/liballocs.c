@@ -1,5 +1,6 @@
-#include <libcrunchk/libcrunch.h>
-
+#include <libcrunchk/include/liballocs.h>
+#include <libcrunchk/include/pageindex.h>
+#include <libcrunchk/include/allocmeta.h>
 
 /* special uniqtypes */
 struct uniqtype *pointer_to___uniqtype__void;
@@ -10,7 +11,6 @@ struct uniqtype *pointer_to___uniqtype____PTR___PTR_signed_char;
 struct uniqtype *pointer_to___uniqtype__Elf64_auxv_t;
 struct uniqtype *pointer_to___uniqtype____ARR0_signed_char;
 struct uniqtype *pointer_to___uniqtype__intptr_t;
-
 
 /* counters TODO sysctl? */
 unsigned long __liballocs_aborted_stack = 0;
@@ -63,8 +63,10 @@ extern inline struct liballocs_err *__liballocs_get_alloc_info(
 	PRINTD1("__liballocs_get_alloc_info: %p", obj);
 	/* struct liballocs_err *err = 0; */
 
+	struct big_allocation *containing_bigalloc;
+	struct big_allocation *maybe_the_allocation;
 	struct allocator *a = __liballocs_leaf_allocator_for(
-		obj
+		obj, &containing_bigalloc, &maybe_the_allocation
 	);
 	if (__builtin_expect(!a, 0))
 	{
@@ -72,7 +74,7 @@ extern inline struct liballocs_err *__liballocs_get_alloc_info(
 		if (fixed)
 		{
 			a = __liballocs_leaf_allocator_for(
-				obj
+				obj, &containing_bigalloc, &maybe_the_allocation
 			);
 			return &__liballocs_err_abort;
 		}
@@ -86,22 +88,12 @@ extern inline struct liballocs_err *__liballocs_get_alloc_info(
 	if (out_allocator) *out_allocator = a;
 	return a->get_info(
 		(void*) obj,
-		/* maybe_the_allocation, */
+		maybe_the_allocation,
 		out_alloc_uniqtype,
 		(void**) out_alloc_start,
 		out_alloc_size_bytes,
 		out_alloc_site
 	);
-}
-
-/* A client-friendly lookup function that knows about bigallocs.
- * FIXME: this needs to go away! Clients shouldn't have to know about inserts,
- * and not all allocators maintain them. */
-struct insert *__liballocs_get_insert(const void *mem)
-{
-	PRINTD1("__liballocs_get_insert: %p", mem);
-	// TODO
-	return lookup_object_info(mem, NULL, NULL/*, NULL*/);
 }
 
 extern inline _Bool __liballocs_find_matching_subobject(
@@ -183,7 +175,8 @@ extern inline _Bool __liballocs_find_matching_subobject(
 	return 0;
 }
 
-/* stolen from libkern, not sure if necessary to avoid outside calls? */
+
+/* stolen from libkern, to avoid outside calls? */
 static int strncmp(const char *s1, const char *s2, size_t n)
 {
 	if (n == 0)
@@ -196,6 +189,19 @@ static int strncmp(const char *s1, const char *s2, size_t n)
 			break;
 	} while (--n != 0);
 	return (0);
+}
+
+static const char *(__attribute__((pure)) __liballocs_uniqtype_symbol_name)(
+	const struct uniqtype *u
+) {
+	return "__liballocs_uniqtype_symbol_name not implemented";
+	// TODO not sure if will work in kernel
+	/* if (!u) return NULL; */
+	/* Dl_info i = dladdr_with_cache(u); */
+	/* if (i.dli_saddr == u) */
+	/* { */
+	/* 	return i.dli_sname; */
+	/* } else return NULL; */
 }
 
 const char *(__attribute__((pure)) __liballocs_uniqtype_name)(
@@ -220,6 +226,7 @@ const char *(__attribute__((pure)) __liballocs_uniqtype_name)(
 	}
 	return "(unnamed type)";
 }
+
 
 inline _Bool
 /* __attribute__((always_inline,gnu_inline)) */
@@ -316,49 +323,116 @@ const char *format_symbolic_address(const void *addr)
 }
 
 inline
-struct allocator *(__attribute__((always_inline,gnu_inline))
-__liballocs_leaf_allocator_for) (
-	const void *obj
-	/* struct big_allocation **out_containing_bigalloc, */
-	/* struct big_allocation **out_maybe_the_allocation */
-) {
-	// TODO, add the two other kernel allocators, zone and kmap
-	// TODO, add the stack allocator
-	return &__generic_malloc_allocator;
-}
-
-void __liballocs_report_wild_address(const void *ptr)
-{
-	PRINTD1("__liballocs_report_wild_address: %p", ptr);
-	// TODO, pageindex.c
-	return;
-}
-
-struct tagged_uniqtype tagged_uniqtype_array[ALLOCSITE_ARRAY_SPACES];
-inline
 struct uniqtype * __attribute__((gnu_inline))
 allocsite_to_uniqtype(const void *allocsite)
 {
 	PRINTD1("allocsite_to_uniqtype: %p", allocsite);
+	return NULL; // TODO
 	if (!allocsite) return NULL;
-	unsigned long i = ALLOCSITE_ARRAY_INDEX(allocsite);
+	/* unsigned long i = ALLOCSITE_ARRAY_INDEX(allocsite); */
 	/* PRINTD1("***allocsite: %p", tagged_uniqtype_array[i].allocsite); */
 	/* PRINTD1("***uniqtype: %p", tagged_uniqtype_array[i].type); */
-	if (tagged_uniqtype_array[i].allocsite == allocsite)
-		return tagged_uniqtype_array[i].type;  // can be null
+	/* if (tagged_uniqtype_array[i].allocsite == allocsite) */
+	/* 	return tagged_uniqtype_array[i].type;  // can be null */
 	return NULL;
 }
 
-_Bool __liballocs_notify_unindexed_address(const void *ptr)
-{
-	/* We get called if the caller finds an address that's not indexed
-	 * anywhere.  It's a way of asking us to check.
-	 * We ask all our allocators in turn whether they own this address.
-	 * Only stack is expected to reply positively. */
-	// Well not true for my version..
-	/* _Bool ret = __stack_allocator_notify_unindexed_address(ptr); */
-	/* if (ret) return 1; */
-	/* // FIXME: loop through the others */
-	// TODO, not sure if this will play larger role than just stack
-	return 0;
+liballocs_err_t extract_and_output_alloc_site_and_type(
+	struct insert *p_ins,
+	struct uniqtype **out_type,
+	void **out_site
+) {
+	PRINTD2(
+		"extract_and_..: flag %u, site %p",
+		p_ins->alloc_site_flag,
+		p_ins->alloc_site
+	);
+	if (!p_ins) {
+		++__liballocs_aborted_unindexed_heap;
+		return &__liballocs_err_unindexed_heap_object;
+	}
+	/* void *alloc_site_addr = (void *) ((uintptr_t) p_ins->alloc_site); */
+
+	/* Now we have a uniqtype or an allocsite. For long-lived objects
+	 * the uniqtype will have been installed in the heap header already.
+	 * This is the expected case.
+	 */
+	struct uniqtype *alloc_uniqtype;
+	if (__builtin_expect(p_ins->alloc_site_flag, 1)) {
+		if (out_site) *out_site = NULL;
+		/* Clear the low-order bit, which is available as an extra flag
+		 * bit. libcrunch uses this to track whether an object is "loose"
+		 * or not. Loose objects have approximate type info that might be
+		 * "refined" later, typically e.g. from __PTR_void to __PTR_T. */
+		alloc_uniqtype = (struct uniqtype *)((uintptr_t)(p_ins->alloc_site) & ~0x1ul);
+	}
+	else {
+		/* Look up the allocsite's uniqtype, and install it in the heap info
+		 * (on NDEBUG builds only, because it reduces debuggability a bit). */
+		uintptr_t alloc_site_addr = p_ins->alloc_site;
+		void *alloc_site = (void*) alloc_site_addr;
+		if (out_site) *out_site = alloc_site;
+		alloc_uniqtype = allocsite_to_uniqtype(alloc_site/*, p_ins*/);
+
+		/* Remember the unrecog'd alloc sites we see. */
+		// TODO, this is caching?
+		/* if (!alloc_uniqtype && alloc_site && */
+		/* 	!__liballocs_addrlist_contains( */
+		/* 		&__liballocs_unrecognised_heap_alloc_sites, */
+		/* 		alloc_site */
+		/* 	) */
+		/* ) { */
+		/* 	__liballocs_addrlist_add(&__liballocs_unrecognised_heap_alloc_sites, alloc_site); */
+		/* } */
+#ifdef NDEBUG
+		// install it for future lookups
+		// FIXME: make this atomic using a union
+		// Is this in a loose state? NO. We always make it strict.
+		// The client might override us by noticing that we return
+		// it a dynamically-sized alloc with a uniqtype.
+		// This means we're the first query to rewrite the alloc site,
+		// and is the client's queue to go poking in the insert.
+		if (alloc_uniqtype) {
+			// Only doing this if not null because of inserting type from first
+			// check in libcrunch
+			p_ins->alloc_site_flag = 1;
+			p_ins->alloc_site = (uintptr_t) alloc_uniqtype /* | 0x0ul */;
+		}
+#endif
+	}
+
+	// if we didn't get an alloc uniqtype, we abort
+	if (!alloc_uniqtype)
+	{
+		++__liballocs_aborted_unrecognised_allocsite;
+
+		/* We used to do this in clear_alloc_site_metadata in libcrunch...
+		 * In cases where heap classification failed, we null out the allocsite
+		 * to avoid repeated searching. We only do this for non-debug
+		 * builds because it makes debugging a bit harder.
+		 * NOTE that we don't want the insert to look like a deep-index
+		 * terminator, so we set the flag.
+		 */
+		if (p_ins)
+		{
+	#ifdef NDEBUG
+			/* TODO this breaks insert type of first check in is_a_internal */
+			/* p_ins->alloc_site_flag = 1; */
+			/* p_ins->alloc_site = 0; */
+	#endif
+			// Not sure if this makes sense in kernel
+			/* assert(INSERT_DESCRIBES_OBJECT(p_ins)); */
+			// The definition of below is that both of alloc_site and
+			// alloc_site_flag must be null, which can't be true given the
+			// above lines, right?
+			/* assert(!INSERT_IS_NULL(p_ins)); */
+		}
+			
+		return &__liballocs_err_unrecognised_alloc_site;;
+	}
+	// else output it
+	if (out_type) *out_type = alloc_uniqtype;
+	
+	/* return success */
+	return NULL;
 }
