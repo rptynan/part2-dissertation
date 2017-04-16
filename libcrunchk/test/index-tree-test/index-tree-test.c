@@ -2,7 +2,6 @@
 #include <assert.h>
 #include <stdio.h>
 
-void *malloc(unsigned long size, struct malloc_type *type, int flags);
 
 struct my_data {
 	int x;

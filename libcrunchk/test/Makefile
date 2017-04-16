@@ -12,7 +12,8 @@ DEBUG_FLAGS = -DDEBUG_CIL_INLINES=2 -DDEBUG_STUBS=2 -g
 
 THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 MAKE = gmake
-INCLUDE_MK_INC = `if test -e $(dir $(realpath $(THIS_MAKEFILE)))/$*/mk.inc; then /bin/echo -f mk.inc; else true; fi`
+INCLUDE_MK_INC = `if test -e $(dir $(realpath $(THIS_MAKEFILE)))/$*/mk.inc; then echo -f mk.inc; else true; fi`
+IS_INTERNAL_TEST ?= 0
 RERUN_TESTS_ON_CHANGE =  # Just blanking out from original test makefile
 
 
@@ -50,7 +51,7 @@ _onlygdbrun-%:
 
 # Rule which can be run from test dirs to build the exec
 _build-%: $(LIBCRUNCH_OBJS)
-	$(CRUNCHCC) $*.c -c -o $*.o $(DEBUG_FLAGS) $(W_FLAGS)
+	$(CRUNCHCC) $*.c -c -o $*.o $(DEBUG_FLAGS) $(W_FLAGS) -include ../testsheader.h -DIS_INTERNAL_TEST=$(IS_INTERNAL_TEST)
 	$(DUMPTYPES) $*.o > types.c 2> /dev/null
 	$(PLAIN_CC) types.c -c -o types.o
 	$(PLAIN_CC) $(LIBCRUNCH_OBJS) types.o $*.o -o $* -Wl,-wrap,malloc -lc $(DEBUG_FLAGS)

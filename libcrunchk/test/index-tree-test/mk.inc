@@ -1,0 +1,1 @@
+export IS_INTERNAL_TEST = 1
