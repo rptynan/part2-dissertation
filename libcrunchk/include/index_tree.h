@@ -39,7 +39,7 @@ extern struct itree_node *itree_find(
 	itree_compare_func compare
 );
 
-void *itree_inorder_traverse(
+void itree_inorder_traverse(
 	struct itree_node *root,
 	itree_traverse_func func
 );

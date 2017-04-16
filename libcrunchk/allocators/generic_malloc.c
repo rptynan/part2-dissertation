@@ -15,8 +15,9 @@ struct insert *__liballocs_get_insert(const void *mem)
 		&__generic_malloc_allocator, NULL);
 	if (b)
 	{
-		assert(b->meta.what == INS_AND_BITS);
-		return &b->meta.un.ins_and_bits.ins;
+		// TODO see if this is used
+		/* assert(b->meta.what == INS_AND_BITS); */
+		/* return &b->meta.un.ins_and_bits.ins; */
 	}
 	else return lookup_object_info(mem, NULL, NULL, NULL);
 }
@@ -45,7 +46,10 @@ liballocs_err_t __generic_heap_get_info(
 	if (maybe_bigalloc)
 	{
 		/* We already have the metadata. */
-		heap_info = &maybe_bigalloc->meta.un.ins_and_bits.ins;
+		// TODO replacing this with lookup for now, is meta updated anywhere?
+		// If so, use here.
+		/* heap_info = &maybe_bigalloc->meta.un.ins_and_bits.ins; */
+		heap_info = lookup_object_info(obj, NULL, NULL, NULL);
 		if (out_base) *out_base = maybe_bigalloc->begin;
 		if (out_size) *out_size = (char*) maybe_bigalloc->end - (char*) maybe_bigalloc->begin;
 	} 
@@ -77,17 +81,17 @@ struct insert *lookup_object_info(const void *mem, void **out_object_start, size
 {
 	return NULL; // TODO
 
-	/* /1* Unlike our malloc hooks, we might get called before initialization, */
-	/*    e.g. if someone tries to do a lookup before the first malloc of the */
-	/*    program's execution. Rather than putting an initialization check */
-	/*    in the fast-path functions, we bail here.  *1/ */
+	/* Unlike our malloc hooks, we might get called before initialization,
+	   e.g. if someone tries to do a lookup before the first malloc of the
+	   program's execution. Rather than putting an initialization check
+	   in the fast-path functions, we bail here.  */
 	/* if (!index_region) return NULL; */
 	
-	/* /1* Try matching in the cache. NOTE: how does this impact bigalloc and deep-indexed */ 
-	/*  * entries? In all cases, we cache them here. We also keep a "is_deepest" flag */
-	/*  * which tells us (conservatively) whether it's known to be the deepest entry */
-	/*  * indexing that storage. In this function, we *only* return a cache hit if the */ 
-	/*  * flag is set. (In lookup_l01_object_info, this logic is different.) *1/ */
+	/* Try matching in the cache. NOTE: how does this impact bigalloc and deep-indexed 
+	 * entries? In all cases, we cache them here. We also keep a "is_deepest" flag
+	 * which tells us (conservatively) whether it's known to be the deepest entry
+	 * indexing that storage. In this function, we *only* return a cache hit if the 
+	 * flag is set. (In lookup_l01_object_info, this logic is different.) */
 	/* check_cache_sanity(); */
 	/* void *l01_object_start = NULL; */
 	/* struct insert *found_l01 = NULL; */
@@ -222,8 +226,11 @@ void *__wrap_malloc(unsigned long size, struct malloc_type *type, int flags)
 	__currently_allocating++;
 	void *ret;
 	ret = __real_malloc(size, type, flags);
-	/* if (ret) { */
-	/* 	void *caller = __builtin_return_address(1); */
+	if (ret) {
+		pageindex_insert(ret, ret + size, &__generic_malloc_allocator);
+		void *caller = __builtin_return_address(1);
+		/* heapindex_insert(ret, ret + size, caller); */
+	}
 	/* 	// Insert for addr -> insert */
 	/* 	unsigned long i = ADDR_ARRAY_INDEX(ret); */
 	/* 	tagged_insert_array[i].addr = ret; // TODO ?? difference to start? */

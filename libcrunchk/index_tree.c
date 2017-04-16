@@ -42,7 +42,7 @@ struct itree_node *itree_find(
 }
 
 
-void *itree_inorder_traverse(
+void itree_inorder_traverse(
 	struct itree_node *root,
 	itree_traverse_func func
 ) {
