@@ -92,7 +92,7 @@ if $INSTALL_REBOOT; then
 		echo -n "Warning, haven't copied good kernel! " && \
 		echo "Might not be able to boot if kernel is bad!"
 	echo "Installing"
-	make installkernel KERNCONF=CRUNCHED 1> ~/log 2> ~/errorlog
+	make installkernel KERNCONF=CRUNCHED 1> ~/loginstall 2> ~/errorloginstall
 	if [[ $? != 0 ]]; then
 		echo "Install failed, logs in ~, exiting"
 		exit

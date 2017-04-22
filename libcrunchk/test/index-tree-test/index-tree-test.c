@@ -29,27 +29,26 @@ int main() {
 		// Insert numbers in range [200, 1200)
 		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
 		p->x = rand() % 1000 + 200;
-		root = itree_insert(root, p, my_compare);
+		itree_insert(&root, p, my_compare);
 		// Insert numbers in range [1300, 2300)
 		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
 		p->x = rand() % 1000 + 1300;
-		root = itree_insert(root, p, my_compare);
+		itree_insert(&root, p, my_compare);
 	}
 	// We'll look for these (so they're definitely only in there once)
 	p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
 	p->x = 42;
-	root = itree_insert(root, p, my_compare);
+	itree_insert(&root, p, my_compare);
 	p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
 	p->x = 1242;
-	root = itree_insert(root, p, my_compare);
+	itree_insert(&root, p, my_compare);
 	p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
 	p->x = 2442;
-	root = itree_insert(root, p, my_compare);
+	itree_insert(&root, p, my_compare);
 
 	// Test find
 	struct my_data q;
 	q.x = 42;
-	/* printf("%p\n", itree_find(root, &q, my_compare)); */
 	assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == 42);
 	q.x = 1242;
 	assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == 1242);

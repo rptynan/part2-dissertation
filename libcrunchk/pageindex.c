@@ -29,11 +29,11 @@ void pageindex_insert(
 	struct allocator *allocated_by
 ) {
 	struct big_allocation *b =
-		__real_malloc(sizeof(struct big_allocation), M_ITREE_DATA, M_NOWAIT);
+		__real_malloc(sizeof(struct big_allocation), M_TEMP, M_WAITOK);
 	b->begin = begin;
 	b->end = end;
 	b->allocated_by = allocated_by;
-	pageindex_root = itree_insert(pageindex_root, (void *)b, pageindex_compare);
+	itree_insert(&pageindex_root, (void *)b, pageindex_compare);
 }
 
 

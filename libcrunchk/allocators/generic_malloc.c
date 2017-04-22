@@ -210,12 +210,11 @@ struct allocator __generic_malloc_allocator = {
 */
 
 int __currently_freeing = 0;  // TODO
-int __currently_allocating = 0;
+int __currently_allocating = 0; // TODO mutexes
 
-/* The real malloc function, sig taken from malloc(9) man page */
-void *__real_malloc(unsigned long size, struct malloc_type *type, int flags);
 
-/* The hook */
+/* The hook, __real_malloc has same signature */
+#include <libcrunchk/include/index_tree.h>
 void *__wrap_malloc(unsigned long size, struct malloc_type *type, int flags)
 {
 	PRINTD1("malloc called, size: %u", size);
@@ -227,9 +226,19 @@ void *__wrap_malloc(unsigned long size, struct malloc_type *type, int flags)
 	void *ret;
 	ret = __real_malloc(size, type, flags);
 	if (ret) {
-		pageindex_insert(ret, ret + size, &__generic_malloc_allocator);
-		void *caller = __builtin_return_address(1);
-		/* heapindex_insert(ret, ret + size, caller); */
+		static int goes = 1;
+		goes++;
+		PRINTD1("malloc goes: %d", goes);
+		/* if (goes > 1000 && goes % 10000 == 0) { */
+		if (flags & M_WAITOK) {
+			PRINTD("doing it");
+			// TODO we're ignoring M_NOWAITs for now because itree can't do a
+			// malloc during them, but should add a buffer to do M_NOWAITs
+			// later
+			pageindex_insert(ret, ret + size, &__generic_malloc_allocator);
+			void *caller = __builtin_return_address(1);
+			/* heapindex_insert(ret, ret + size, caller); */
+		}
 	}
 	/* 	// Insert for addr -> insert */
 	/* 	unsigned long i = ADDR_ARRAY_INDEX(ret); */

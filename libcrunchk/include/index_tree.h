@@ -1,17 +1,13 @@
+#include <sys/param.h>
 #include <sys/malloc.h>
 
 #ifdef _KERNEL
 MALLOC_DECLARE(M_ITREE_NODE);
-MALLOC_DEFINE(M_ITREE_NODE, "itree_node", "Node for libcrunchk's index tree");
 MALLOC_DECLARE(M_ITREE_DATA);
-MALLOC_DEFINE(
-	M_ITREE_DATA,
-	"itree_data",
-	"Data for a node in libcrunhk's index tree"
-);
 #else
 #define M_ITREE_NODE NULL
 #define M_ITREE_DATA NULL
+#define M_TEMP NULL  // TODO investigate above types causing page faults
 #endif
 
 struct itree_node {
@@ -27,8 +23,8 @@ typedef void (*itree_traverse_func)(void *a);
 
 /* Note: the data to_insert points to must have an appropriate allocation
  * lifetime, e.g. heap, only the pointer is copied by insert */
-extern struct itree_node *itree_insert(
-	struct itree_node *root,
+void itree_insert(
+	struct itree_node **proot,
 	void *to_insert,
 	itree_compare_func compare
 );

@@ -1,29 +1,50 @@
 #include <libcrunchk/include/index_tree.h>
 #include <libcrunchk/include/libcrunch.h>
 
+#ifdef _KERNEL
+MALLOC_DEFINE(M_ITREE_NODE, "itree_node", "Node for libcrunchk's index tree");
+MALLOC_DEFINE(
+	M_ITREE_DATA,
+	"itree_data",
+	"Data for a node in libcrunhk's index tree"
+);
+#endif
 
-struct itree_node *itree_insert(
-	struct itree_node *root,
+
+void itree_insert(
+	struct itree_node **rootp,
 	void *to_insert,
 	itree_compare_func compare
 ) {
-	if (!root) {
-		root = __real_malloc(
-			sizeof(struct itree_node),
-			M_ITREE_NODE,
-			M_NOWAIT  // TODO revise this
-		);
+	struct itree_node **parent_link = NULL;
+	struct itree_node *root = *rootp;
+	while (root) {
+		if (compare(to_insert, root->data) < 0) {  // <
+			parent_link = &root->left;
+			root = root->left;
+		}
+		else {  // >=
+			parent_link = &root->right;
+			root = root->right;
+		}
+	}
+
+	root = __real_malloc(
+		sizeof(struct itree_node),
+		M_TEMP,
+		M_WAITOK  // We should only be called when the containing malloc is
+				  // wait ok anyway
+	);
+	if (root) {
 		root->data = to_insert;
 		root->left = NULL;
 		root->right = NULL;
+		if (parent_link) *parent_link = root;
+		if (!*rootp) *rootp = root;
 	}
-	else if (compare(to_insert, root->data) < 0) {  // <
-		root->left = itree_insert(root->left, to_insert, compare);
+	else {
+		PRINTD("Failed to allocate itree_node!");
 	}
-	else {  // >=
-		root->right = itree_insert(root->right, to_insert, compare);
-	}
-	return root;
 }
 
 
@@ -33,12 +54,16 @@ struct itree_node *itree_find(
 	itree_compare_func compare
 ) {
 	if (!root) return NULL;
-	if (compare(to_find, root->data) == 0) return root;
-
-	if (compare(to_find, root->data) < 0) {  // <
-		return itree_find(root->left, to_find, compare);
+	while (root) {
+		if (compare(to_find, root->data) == 0) return root;
+		else if (compare(to_find, root->data) < 0) {  // <
+			root = root->left;
+		}
+		else {
+			root = root->right;
+		}
 	}
-	return itree_find(root->right, to_find, compare);
+	return NULL;
 }
 
 

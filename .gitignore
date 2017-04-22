@@ -1,6 +1,7 @@
 *.o
 *.o.fixuplog
 *.i.*
+*.i
 *.cil*
 *.core
 libcrunchk/test/test

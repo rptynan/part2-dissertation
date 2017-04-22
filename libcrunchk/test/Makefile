@@ -1,7 +1,7 @@
 LIBALLOCS_BASE = /usr/local/src/liballocs
 LIBCRUNCH_BASE := /usr/local/src/libcrunch
 
-CRUNCHCC = $(LIBCRUNCH_BASE)/frontend/c/bin/crunchcc
+CRUNCHCC ?= $(LIBCRUNCH_BASE)/frontend/c/bin/crunchcc
 # CRUNCHCC = /usr/bin/gcc
 PLAIN_CC = /usr/bin/gcc
 DUMPTYPES = $(LIBALLOCS_BASE)/tools/dumptypes
@@ -9,6 +9,7 @@ DUMPTYPES = $(LIBALLOCS_BASE)/tools/dumptypes
 LIBCRUNCH_OBJS = libcrunch.o liballocs.o pageindex.o generic_malloc.o index_tree.o
 W_FLAGS = -Wall -Wno-format -std=gnu11
 DEBUG_FLAGS = -DDEBUG_CIL_INLINES=2 -DDEBUG_STUBS=2 -g
+WRAP_FLAGS ?= -Wl,-wrap,malloc
 
 THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 MAKE = gmake
@@ -54,7 +55,7 @@ _build-%: $(LIBCRUNCH_OBJS)
 	$(CRUNCHCC) $*.c -c -o $*.o $(DEBUG_FLAGS) $(W_FLAGS) -include ../testsheader.h -DIS_INTERNAL_TEST=$(IS_INTERNAL_TEST)
 	$(DUMPTYPES) $*.o > types.c 2> /dev/null
 	$(PLAIN_CC) types.c -c -o types.o
-	$(PLAIN_CC) $(LIBCRUNCH_OBJS) types.o $*.o -o $* -Wl,-wrap,malloc -lc $(DEBUG_FLAGS)
+	$(PLAIN_CC) $(LIBCRUNCH_OBJS) types.o $*.o -o $* $(WRAP_FLAGS) -lc $(DEBUG_FLAGS)
 
 build-%:
 	$(MAKE) -C "$*" $(INCLUDE_MK_INC) -f ../Makefile _build-$*
