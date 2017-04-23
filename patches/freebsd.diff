@@ -17,19 +17,20 @@ Index: sys/conf/files
 ===================================================================
 --- sys/conf/files	(revision 313929)
 +++ sys/conf/files	(working copy)
-@@ -3129,6 +3129,12 @@
- kern/sysv_sem.c			optional sysvsem
- kern/sysv_shm.c			optional sysvshm
- kern/tty.c			standard
-+kern/stubs.c			standard
-+kern/typesstack.c		standard
-+kern/types1.c			standard
-+kern/types2.c			standard
-+kern/types3.c			standard
-+kern/types4.c			standard
- kern/tty_compat.c		optional compat_43tty
- kern/tty_info.c			standard
- kern/tty_inq.c			standard
+@@ -4106,3 +4106,13 @@
+ xdr/xdr_mem.c			optional krpc | nfslockd | nfsclient | nfsserver | nfscl | nfsd
+ xdr/xdr_reference.c		optional krpc | nfslockd | nfsclient | nfsserver | nfscl | nfsd
+ xdr/xdr_sizeof.c		optional krpc | nfslockd | nfsclient | nfsserver | nfscl | nfsd
++libcrunchk/libcrunch.c				standard
++libcrunchk/liballocs.c				standard
++libcrunchk/pageindex.c				standard
++libcrunchk/index_tree.c				standard
++libcrunchk/allocators/generic_malloc.c				standard
++libcrunchk/types/typesstack.c		standard
++libcrunchk/types/types1.c			standard
++libcrunchk/types/types2.c			standard
++libcrunchk/types/types3.c			standard
++libcrunchk/types/types4.c			standard
 Index: sys/conf/newvers.sh
 ===================================================================
 --- sys/conf/newvers.sh	(revision 313929)
@@ -86,13 +87,59 @@ Index: sys/netinet/ip_icmp.c
 ===================================================================
 --- sys/netinet/ip_icmp.c	(revision 313929)
 +++ sys/netinet/ip_icmp.c	(working copy)
-@@ -369,6 +369,10 @@
+@@ -353,6 +353,9 @@
+ 	m_freem(n);
+ }
+ 
++#include <sys/malloc.h>  // rpt
++MALLOC_DECLARE(M_LIBCRUNCH_TEST);
++MALLOC_DEFINE(M_LIBCRUNCH_TEST, "libcrunchtest", "libcrunch test");
+ /*
+  * Process a received ICMP message.
+  */
+@@ -369,6 +372,46 @@
  	void (*ctlfunc)(int, struct sockaddr *, void *);
  	int fibnum;
  
-+	PRINTD1("icmp_input, m: %u", m);
-+	struct sockaddr_in *x = (struct sockaddr_in *) m; //debugging, rpt
-+	PRINTD1("icmp_input, x: %u", x);
++
++	// sockaddr_in and tcphdr are both in types, mbuf is not aliased
++
++	// On the stack:
++#ifdef PRINTD1
++	PRINTD("================== stack test ==================");
++#endif
++	struct mbuf m1;
++	void *t1 = &m1;
++#ifdef PRINTD1
++	PRINTD("==== should fail: ====");
++#endif
++	struct sockaddr_in *x1 = (struct sockaddr_in *) t1;
++#ifdef PRINTD1
++	PRINTD1("icmp_input, &m1: %p", &m1);
++	PRINTD1("icmp_input, x1: %p", x1);
++#endif
++
++	// On the heap:
++#ifdef PRINTD1
++	PRINTD("================== heap test ==================");
++	PRINTD("==== malloc: ====");
++#endif
++	struct tcphdr *m2 = malloc(sizeof(struct tcphdr), M_LIBCRUNCH_TEST, M_WAITOK);
++	void *t2 = m2;
++#ifdef PRINTD1
++	PRINTD("==== should pass: ====");
++#endif
++	struct tcphdr *y2 = (struct tcphdr *) t2;
++#ifdef PRINTD1
++	PRINTD("==== should fail: ====");
++#endif
++	struct sockaddr_in *z2 = (struct sockaddr_in *) t2;
++#ifdef PRINTD1
++	PRINTD1("icmp_input, m2: %p", m2);
++	PRINTD1("icmp_input, y2: %p", y2);
++	PRINTD1("icmp_input, z2: %p", z2);
++#endif
++	free(m2, M_LIBCRUNCH_TEST);
 +
  	/*
  	 * Locate icmp structure in mbuf, and check

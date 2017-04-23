@@ -165,6 +165,7 @@ extern _Bool our_init_flag __attribute__(
 struct __libcrunch_cache __libcrunch_is_a_cache; // all zeroes
 
 /* Only run when userspace testing */
+#ifndef _KERNEL
 static void print_exit_summary(void)
 {
 	fprintf(stderr, "====================================================\n");
@@ -203,6 +204,7 @@ static void print_exit_summary(void)
 	fprintf(stderr, "====================================================\n");
 	fprintf(stderr, "failed because of liballocs error:         % 9ld\n", __libcrunch_failed_liballocs_err);
 }
+#endif
 
 void __libcrunch_scan_lazy_typenames(void *blah)
 {
@@ -389,6 +391,7 @@ int __is_a_internal(const void *obj, const void *arg)
 		assert(ins);
 		if (STORAGE_CONTRACT_IS_LOOSE(ins, alloc_site))
 		{
+			PRINTD("__is_a_internal lazy_heap_type_assignment");
 			++__libcrunch_lazy_heap_type_assignment;
 			
 			// update the heap chunk's info to say that its type is (strictly) our test_uniqtype
@@ -404,6 +407,7 @@ int __is_a_internal(const void *obj, const void *arg)
 	if (is_cacheable) cache_is_a(range_base, range_limit, test_uniqtype, 0, period, alloc_start);
 	if (__currently_allocating || __currently_freeing)
 	{
+		PRINTD("__is_a_internal failed in alloc");
 		++__libcrunch_failed_in_alloc;
 		// suppress warning
 	}
