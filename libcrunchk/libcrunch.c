@@ -162,6 +162,44 @@ extern _Bool our_init_flag __attribute__(
 
 struct __libcrunch_cache __libcrunch_is_a_cache; // all zeroes
 
+/* Only run when userspace testing */
+static void print_exit_summary(void)
+{
+	fprintf(stderr, "====================================================\n");
+	fprintf(stderr, "libcrunch summary: \n");
+	fprintf(stderr, "----------------------------------------------------\n");
+	fprintf(stderr, "type checks begun:                         % 9ld\n", __libcrunch_begun);
+	fprintf(stderr, "----------------------------------------------------\n");
+/* #ifdef LIBCRUNCH_EXTENDED_COUNTS */
+/* 	fprintf(stderr, "       aborted due to init failure:        % 9ld\n", __libcrunch_aborted_init); */
+/* #endif */
+	fprintf(stderr, "       aborted for bad typename:           % 9ld\n", __libcrunch_aborted_typestr);
+/* #ifdef LIBCRUNCH_EXTENDED_COUNTS */
+/* 	fprintf(stderr, "       trivially passed:                   % 9ld\n", __libcrunch_trivially_succeeded); */
+/* #endif */
+/* #ifdef LIBCRUNCH_EXTENDED_COUNTS */
+/* 	fprintf(stderr, "       remaining                           % 9ld\n", __libcrunch_begun - (__libcrunch_trivially_succeeded + __liballocs_aborted_unknown_storage + __libcrunch_aborted_typestr + __libcrunch_aborted_init)); */
+/* #else */
+	fprintf(stderr, "       remaining                           % 9ld\n", __libcrunch_begun - (__liballocs_aborted_unknown_storage + __libcrunch_aborted_typestr));
+/* #endif */	
+	fprintf(stderr, "----------------------------------------------------\n");
+	fprintf(stderr, "   of which did lazy heap type assignment: % 9ld\n", __libcrunch_lazy_heap_type_assignment);
+	fprintf(stderr, "----------------------------------------------------\n");
+	fprintf(stderr, "       failed inside allocation functions: % 9ld\n", __libcrunch_failed_in_alloc);
+	fprintf(stderr, "       failed otherwise:                   % 9ld\n", __libcrunch_failed);
+	/* fprintf(stderr, "                 of which user suppressed: % 9ld\n", __libcrunch_failed_and_suppressed); */
+	fprintf(stderr, "       nontrivially passed:                % 9ld\n", __libcrunch_succeeded);
+	fprintf(stderr, "----------------------------------------------------\n");
+	fprintf(stderr, "   of which hit __is_a cache:              % 9ld\n", __libcrunch_is_a_hit_cache);
+	fprintf(stderr, "----------------------------------------------------\n");
+	fprintf(stderr, "out-of-bounds pointers created:            % 9ld\n", __libcrunch_created_invalid_pointer);
+	/* fprintf(stderr, "accesses trapped and emulated:             % 9ld\n", 0ul /1* FIXME *1/); */
+	/* fprintf(stderr, "calls to __fetch_bounds:                   % 9ld\n", __libcrunch_fetch_bounds_called /1* FIXME: remove *1/); */
+	/* fprintf(stderr, "   of which missed cache:                  % 9ld\n", __libcrunch_fetch_bounds_missed_cache); */
+	fprintf(stderr, "calls requiring secondary checks           % 9ld\n", __libcrunch_primary_secondary_transitions);
+	fprintf(stderr, "trap-pointer fixups in fault handler       % 9ld\n", __libcrunch_fault_handler_fixups);
+	fprintf(stderr, "====================================================\n");
+}
 
 void __libcrunch_scan_lazy_typenames(void *blah)
 {
@@ -202,7 +240,11 @@ int __libcrunch_global_init(void)
 	// for sane memory usage measurement, consider referencedness to start now
 	// Don't know how this would apply
 	/* clear_mem_refbits(); */
-	
+
+	// For testing in userspace
+	#ifndef _KERNEL
+		atexit(print_exit_summary);
+	#endif
 	__libcrunch_is_initialized = 1;
 	PRINTD("libcrunch successfully initialized"); // lvl=1
 	return 0;

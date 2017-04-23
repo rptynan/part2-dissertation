@@ -16,7 +16,8 @@ int main() {
 
 	// Test 1
 	// Should pass first is_a()
-	struct bar *p = malloc(sizeof(struct bar), NULL, M_WAITOK);
+	/* struct bar *p = malloc(sizeof(struct bar), NULL, M_WAITOK); */
+	struct bar *p = malloc(sizeof(struct bar));
 	// And then fail the second
 	struct foo *p1 = (struct foo *) p;
 

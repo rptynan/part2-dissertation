@@ -19,7 +19,8 @@ RERUN_TESTS_ON_CHANGE =  # Just blanking out from original test makefile
 
 
 default: checkall
-checkall: clear-stamps checkrun-my-test checkrun-index-tree-test
+checkall: clear-stamps checkrun-my-test checkrun-index-tree-test \
+	checkrun-hello-heap
 clear-stamps:  # Don't know how to rm these properly
 	find . -name "*-stamp" | xargs rm -f
 
@@ -32,6 +33,24 @@ clear-stamps:  # Don't know how to rm these properly
 
 
 ## Testcases
+
+# Most test cases should output a libcrunch summary in which
+# -- zero or more checks passed (trivially or by lazy typing)
+# -- zero checks aborted
+# -- zero checks failed
+checkrun-%: %/check-stamp
+	true # remembered pass of $*
+%/check-stamp: $(RERUN_TESTS_ON_CHANGE)
+	@echo "case is $*" && \
+	out=$$( echo -n "out is " 1>&2; mktemp | tee /dev/stderr ) && \
+	err=$$( echo -n "err is " 1>&2; mktemp | tee /dev/stderr ) && \
+	$(MAKE) cleanrun-$* 1>$$out 2>$$err && \
+		. ./checks.sh && tail -n32 "$$err" | \
+		    match "       nontrivially passed" '[1-9][0-9]*' | \
+		    match "       failed inside"        '0' | \
+		    match "       failed otherwise"     '0' >/dev/null && \
+		    touch "$@" || \
+		(tail -n32 $$err; false)
 
 checkrun-my-test: my-test/check-stamp
 my-test/check-stamp: $(RERUN_TESTS_ON_CHANGE)

@@ -11,6 +11,6 @@ void *__real_malloc(unsigned long size, struct malloc_type *type, int flags) {
 #else
 #include <sys/malloc.h>
 void *malloc(unsigned long size, struct malloc_type *type, int flags);
-/* #define malloc(size) malloc(size, NULL, M_WAITOK); */
+#define malloc(size) malloc(size, NULL, M_WAITOK);
 /* void *malloc(unsigned long size); */
 #endif
