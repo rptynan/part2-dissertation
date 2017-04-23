@@ -50,7 +50,7 @@ void itree_insert(
 
 struct itree_node *itree_find(
 	struct itree_node *root,
-	void *to_find,
+	const void *to_find,
 	itree_compare_func compare
 ) {
 	if (!root) return NULL;

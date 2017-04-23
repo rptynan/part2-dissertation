@@ -52,6 +52,10 @@ extern unsigned long __liballocs_hit_static_case;
 extern unsigned long __liballocs_aborted_unindexed_heap;
 extern unsigned long __liballocs_aborted_unrecognised_allocsite;
 
+/* special uniqtype to indicate that this type was never encountered before and
+ * so should be set on first is_aU() check. hacky, yes. */
+extern struct uniqtype unset__uniqtype__;
+
 
 /*
  * liballocs - functions
@@ -101,7 +105,12 @@ __liballocs_first_subobject_spanning(
 
 const char *format_symbolic_address(const void *addr);
 
-// given allocsite, get the uniqtype
+/* added - sets the type in the uniqtype_index for a given alloc_site */
+void __liballocs_notify_unset_type(
+	const void *alloc_site,
+	const void *test_uniqtype
+);
+
 extern /*inline*/
 struct uniqtype * /*__attribute__((gnu_inline))*/
 allocsite_to_uniqtype(const void *allocsite);

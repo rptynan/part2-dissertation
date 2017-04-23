@@ -7,7 +7,7 @@ struct my_data {
 	int x;
 };
 
-int my_compare(void *a, void *b) {
+int my_compare(const void *a, const void *b) {
 	struct my_data *aa = (struct my_data *) a;
 	struct my_data *bb = (struct my_data *) b;
 	if (aa->x < bb->x) return -1;

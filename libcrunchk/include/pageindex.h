@@ -24,11 +24,12 @@ struct insert
 	unsigned alloc_site_flag:1;  // If true, alloc_site is the uniqtype
 	/* unsigned long *alloc_site:ADDR_BITSIZE; */
 	unsigned long alloc_site;
-	union  __attribute__((packed))
-	{
-		struct ptrs ptrs;
-		unsigned bits:16;
-	} un;
+	void *addr;
+	/* union  __attribute__((packed)) */
+	/* { */
+	/* 	struct ptrs ptrs; */
+	/* 	unsigned bits:16; */
+	/* } un; */
 } ;//__attribute__((packed));
 
 

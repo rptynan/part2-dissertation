@@ -254,31 +254,23 @@ int __is_a_internal(const void *obj, const void *arg)
 		&alloc_site
 	);
 
-	// Hack for simplicity, if the type hasn't been set by the allocation,
+	// Hack for ease, if the type hasn't been set by the allocation,
 	// we assume it's this type, and try again.
-	// TODO
-	/* unsigned long ind = ALLOCSITE_ARRAY_INDEX(alloc_site); */
-	/* if (unlikely(err != NULL && alloc_site && */
-	/* 	!tagged_uniqtype_array[ind].type) */
-	/* ) { */
-	/* 	PRINTD1( */
-	/* 		"__is_a_internal, setting type to first check: allocsite %p", */
-	/* 		alloc_site */
-	/* 	); */
-	/* 	if (tagged_uniqtype_array[ind].allocsite == alloc_site) { */
-	/* 		PRINTD2("... index %u, type %p", ind, test_uniqtype); */
-	/* 		tagged_uniqtype_array[ind].type = */
-	/* 			test_uniqtype; */
-	/* 		err = __liballocs_get_alloc_info( */
-	/* 			obj, */
-	/* 			&a, */
-	/* 			&alloc_start, */
-	/* 			&alloc_size_bytes, */
-	/* 			&alloc_uniqtype, */
-	/* 			&alloc_site */
-	/* 		); */
-	/* 	} */
-	/* } */
+	if (unlikely(alloc_uniqtype == &unset__uniqtype__)) {
+		PRINTD1(
+			"__is_a_internal, setting type to first check: allocsite %p",
+			alloc_site
+		);
+		__liballocs_notify_unset_type(alloc_site, test_uniqtype);
+		err = __liballocs_get_alloc_info(
+			obj,
+			&a,
+			&alloc_start,
+			&alloc_size_bytes,
+			&alloc_uniqtype,
+			&alloc_site
+		);
+	}
 
 	if (__builtin_expect(err != NULL, 0)) {
 		PRINTD1(
@@ -337,6 +329,7 @@ int __is_a_internal(const void *obj, const void *arg)
 		if (is_cacheable) cache_is_a(range_base, range_limit, test_uniqtype, 1,
 			period, alloc_start);
 
+		PRINTD("__is_a_internal succeeded");
 		++__libcrunch_succeeded;
 		return 1;
 	}

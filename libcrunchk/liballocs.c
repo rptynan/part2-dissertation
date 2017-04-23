@@ -1,4 +1,5 @@
 #include <libcrunchk/include/liballocs.h>
+#include <libcrunchk/include/index_tree.h>
 #include <libcrunchk/include/pageindex.h>
 #include <libcrunchk/include/allocmeta.h>
 
@@ -43,6 +44,25 @@ struct liballocs_err __liballocs_err_unrecognised_static_object
  = { "unrecognised static object" };
 struct liballocs_err __liballocs_err_object_of_unknown_storage
  = { "object of unknown storage" };
+
+/* allocsite -> uniqtype index */
+struct uniqtype_index_node {
+	const void *site;
+	const void *type;
+};
+int uniqtype_index_compare(const void *a, const void *b) {
+	const struct uniqtype_index_node *aa =
+		(const struct uniqtype_index_node *) a;
+	const struct uniqtype_index_node *bb =
+		(const struct uniqtype_index_node *) b;
+	if (aa->site < bb->site) return -1;
+	if (aa->site > bb->site) return +1;
+	return 0;
+}
+struct itree_node *uniqtype_index = NULL;
+
+/* other special uniqtype for unset types */
+struct uniqtype unset__uniqtype__ = {{0}};
 
 
 extern inline void __liballocs_ensure_init(void)
@@ -322,19 +342,38 @@ const char *format_symbolic_address(const void *addr)
 	return "format_symbolic_address not implemented";
 }
 
+void __liballocs_notify_unset_type(
+	const void *alloc_site,
+	const void *test_uniqtype
+) {
+	struct uniqtype_index_node *node = __real_malloc(
+		sizeof(struct uniqtype_index_node),
+		M_TEMP,
+		M_WAITOK  // TODO this probably isn't right, as it's called from is_a
+	);
+	node->site = alloc_site;
+	node->type = test_uniqtype;
+	itree_insert(&uniqtype_index, node, uniqtype_index_compare);
+}
+
 inline
 struct uniqtype * __attribute__((gnu_inline))
 allocsite_to_uniqtype(const void *allocsite)
 {
 	PRINTD1("allocsite_to_uniqtype: %p", allocsite);
-	return NULL; // TODO
-	if (!allocsite) return NULL;
-	/* unsigned long i = ALLOCSITE_ARRAY_INDEX(allocsite); */
-	/* PRINTD1("***allocsite: %p", tagged_uniqtype_array[i].allocsite); */
-	/* PRINTD1("***uniqtype: %p", tagged_uniqtype_array[i].type); */
-	/* if (tagged_uniqtype_array[i].allocsite == allocsite) */
-	/* 	return tagged_uniqtype_array[i].type;  // can be null */
-	return NULL;
+	const struct uniqtype_index_node to_find = {.site = allocsite};
+	const struct itree_node *res = itree_find(
+		uniqtype_index, &to_find, uniqtype_index_compare
+	);
+
+	/* Logic: if we've set this to null before, then a node will be present
+	 * with null data. Otherwise pass back our magic uniqtype so libcrunch
+	 * knows to notify unset type */
+	if (!res) return &unset__uniqtype__;
+	if (!res->data) return NULL;
+	struct uniqtype *type = (struct uniqtype *)
+		((struct uniqtype_index_node *) res->data)->type;
+	return type;
 }
 
 liballocs_err_t extract_and_output_alloc_site_and_type(

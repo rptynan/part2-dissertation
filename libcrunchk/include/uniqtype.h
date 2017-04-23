@@ -4,6 +4,7 @@
 struct uniqtype;
 
 /* Special uniqtypes from liballocs_private.h */
+// TODO, these need to come from somewhere
 extern struct uniqtype *pointer_to___uniqtype__void __attribute__((visibility("hidden")));
 extern struct uniqtype *pointer_to___uniqtype__signed_char __attribute__((visibility("hidden")));
 extern struct uniqtype *pointer_to___uniqtype__unsigned_char __attribute__((visibility("hidden")));

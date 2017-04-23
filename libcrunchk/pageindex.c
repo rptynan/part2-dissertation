@@ -8,7 +8,7 @@
 /* index_tree wrapper functions */
 struct itree_node *pageindex_root = NULL;
 
-int pageindex_compare(void *a, void *b) {
+int pageindex_compare(const void *a, const void *b) {
 	struct big_allocation *aa = (struct big_allocation *) a;
 	struct big_allocation *bb = (struct big_allocation *) b;
 	if (aa->begin < bb->begin) return -1;
@@ -16,8 +16,9 @@ int pageindex_compare(void *a, void *b) {
 	return 0;
 }
 
-static inline struct big_allocation* pageindex_find(const void *begin) {
-	struct big_allocation b = {.begin = (void *)begin};
+static inline struct big_allocation* pageindex_lookup(const void *begin) {
+	PRINTD1("pageindex_lookup: %p", begin);
+	const struct big_allocation b = {.begin = (void *)begin};
 	struct itree_node *res = itree_find(pageindex_root, &b, pageindex_compare);
 	if (res) return (struct big_allocation *) res->data;
 	return NULL;
@@ -28,6 +29,7 @@ void pageindex_insert(
 	void *end,
 	struct allocator *allocated_by
 ) {
+	PRINTD1("pageindex_insert: %p", begin);
 	struct big_allocation *b =
 		__real_malloc(sizeof(struct big_allocation), M_TEMP, M_WAITOK);
 	b->begin = begin;
@@ -44,7 +46,7 @@ __liballocs_leaf_allocator_for) (
 	struct big_allocation **out_containing_bigalloc,  // unused?
 	struct big_allocation **out_maybe_the_allocation
 ) {
-	struct big_allocation *res = pageindex_find(obj);
+	struct big_allocation *res = pageindex_lookup(obj);
 	if (out_maybe_the_allocation) *out_maybe_the_allocation = res;
 	if (res) return res->allocated_by;
 	return NULL;
