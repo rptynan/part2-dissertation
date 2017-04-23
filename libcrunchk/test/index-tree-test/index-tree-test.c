@@ -2,6 +2,9 @@
 #include <assert.h>
 #include <stdio.h>
 
+#define MAX(x, y) (x > y ? x : y)
+#define MIN(x, y) (x < y ? x : y)
+
 
 struct my_data {
 	int x;
@@ -13,6 +16,12 @@ int my_compare(const void *a, const void *b) {
 	if (aa->x < bb->x) return -1;
 	if (aa->x > bb->x) return 1;
 	return 0;
+}
+
+unsigned long my_distance(const void *a, const void *b) {
+	int *aa = (int *) a;
+	int *bb = (int *) b;
+	return (unsigned long) (MAX(*aa, *bb) - MIN(*aa, *bb));
 }
 
 void printstuff(void *a) {
@@ -54,6 +63,16 @@ int main() {
 	assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == 1242);
 	q.x = 2442;
 	assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == 2442);
+
+	// Test find closest under
+	q.x = 43;
+	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 42);
+	q.x = 42;
+	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 42);
+	q.x = 1299;
+	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 1242);
+	q.x = 9000;
+	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 2442);
 
 	return 0;
 }

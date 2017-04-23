@@ -21,6 +21,10 @@ struct itree_node {
 /* function which returns -1 if a < b, 1 if b > a and 0 if a == b */
 typedef int (*itree_compare_func)(const void *a, const void *b);
 
+/* function which returns unsigned integer of the distance between two
+ * elements, only used when looking for closest node */
+typedef unsigned long (*itree_distance_func)(const void *a, const void *b);
+
 /* function to be applied to the data field in a traversal */
 typedef void (*itree_traverse_func)(void *a);
 
@@ -36,6 +40,16 @@ extern struct itree_node *itree_find(
 	struct itree_node *root,
 	const void *data,
 	itree_compare_func compare
+);
+
+/* Finds the node which is equal according to compare, or if that's not
+ * present, the node which is less than the one to find and closest to it (kind
+ * of like the predecessor) */
+extern struct itree_node *itree_find_closest_under(
+	struct itree_node *root,
+	const void *data,
+	itree_compare_func compare,
+	itree_distance_func distance
 );
 
 void itree_inorder_traverse(

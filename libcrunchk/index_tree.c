@@ -59,11 +59,41 @@ struct itree_node *itree_find(
 		else if (compare(to_find, root->data) < 0) {  // <
 			root = root->left;
 		}
-		else {
+		else {  // >
 			root = root->right;
 		}
 	}
 	return NULL;
+}
+
+
+extern struct itree_node *itree_find_closest_under(
+	struct itree_node *root,
+	const void *to_find,
+	itree_compare_func compare,
+	itree_distance_func distance
+) {
+	if (!root) return NULL;
+
+	void *closest_node = root;
+	unsigned long min_distance = distance(root->data, to_find);
+	while (root) {
+		if (compare(to_find, root->data) == 0) return root;
+		else if (compare(to_find, root->data) < 0) {  // <
+			// to_find is less than, so try find something smaller
+			root = root->left;
+		}
+		else {  // >
+			// to_find is greater than, so check if closest so far
+			unsigned long cur_distance = distance(root->data, to_find);
+			if (cur_distance < min_distance) {
+				closest_node = root;
+				min_distance = cur_distance;
+			}
+			root = root->right;
+		}
+	}
+	return closest_node;
 }
 
 
