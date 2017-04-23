@@ -38,7 +38,7 @@ void itree_insert(
 
 extern struct itree_node *itree_find(
 	struct itree_node *root,
-	const void *data,
+	const void *to_find,
 	itree_compare_func compare
 );
 
@@ -47,7 +47,7 @@ extern struct itree_node *itree_find(
  * of like the predecessor) */
 extern struct itree_node *itree_find_closest_under(
 	struct itree_node *root,
-	const void *data,
+	const void *to_find,
 	itree_compare_func compare,
 	itree_distance_func distance
 );

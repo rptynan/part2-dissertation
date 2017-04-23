@@ -58,6 +58,8 @@ LIBCRUNCH_COUNTER(primary_secondary_transitions);
 LIBCRUNCH_COUNTER(fault_handler_fixups);
 LIBCRUNCH_COUNTER(lazy_heap_type_assignment);
 LIBCRUNCH_COUNTER(failed_in_alloc);
+// custom
+LIBCRUNCH_COUNTER(failed_liballocs_err);
 
 
 /* Heap storage sized using a "loose" data type, like void*,
@@ -199,6 +201,7 @@ static void print_exit_summary(void)
 	fprintf(stderr, "calls requiring secondary checks           % 9ld\n", __libcrunch_primary_secondary_transitions);
 	fprintf(stderr, "trap-pointer fixups in fault handler       % 9ld\n", __libcrunch_fault_handler_fixups);
 	fprintf(stderr, "====================================================\n");
+	fprintf(stderr, "failed because of liballocs error:         % 9ld\n", __libcrunch_failed_liballocs_err);
 }
 
 void __libcrunch_scan_lazy_typenames(void *blah)
@@ -319,6 +322,7 @@ int __is_a_internal(const void *obj, const void *arg)
 			"__is_a_internal, liballocs_get_alloc_info returned error: %s",
 			err->message
 		);
+		__libcrunch_failed_liballocs_err++;
 		return 1; // liballocs has already counted this abort
 	}
 

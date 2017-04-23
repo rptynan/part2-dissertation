@@ -16,10 +16,21 @@ int pageindex_compare(const void *a, const void *b) {
 	return 0;
 }
 
+unsigned long pageindex_distance(const void *a, const void *b) {
+	struct big_allocation *aa = (struct big_allocation *) a;
+	struct big_allocation *bb = (struct big_allocation *) b;
+	#define max(x, y) (x > y ? x : y)
+	#define min(x, y) (x < y ? x : y)
+	return (unsigned long)
+		(max(aa->begin, bb->begin) - min(aa->begin, bb->begin));
+}
+
 static inline struct big_allocation* pageindex_lookup(const void *begin) {
 	PRINTD1("pageindex_lookup: %p", begin);
 	const struct big_allocation b = {.begin = (void *)begin};
-	struct itree_node *res = itree_find(pageindex_root, &b, pageindex_compare);
+	struct itree_node *res = itree_find_closest_under(
+		pageindex_root, &b, pageindex_compare, pageindex_distance
+	);
 	if (res) return (struct big_allocation *) res->data;
 	return NULL;
 }
@@ -74,6 +85,7 @@ _Bool __liballocs_notify_unindexed_address(const void *ptr)
 	// TODO, not sure if this will play larger role than just stack
 	return 0;
 }
+
 
 struct big_allocation *__lookup_bigalloc(
 	const void *mem,

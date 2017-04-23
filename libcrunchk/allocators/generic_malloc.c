@@ -23,10 +23,19 @@ int heapindex_compare(const void *a, const void *b) {
 	return 0;
 }
 
+unsigned long heapindex_distance(const void *a, const void *b) {
+	struct insert *aa = (struct insert *) a;
+	struct insert *bb = (struct insert *) b;
+	#define max(x, y) (x > y ? x : y)
+	#define min(x, y) (x < y ? x : y)
+	return (unsigned long)
+		(max(aa->addr, bb->addr) - min(aa->addr, bb->addr));
+}
+
 struct insert *heapindex_lookup(const void *addr) {
 	const struct insert ins = {.addr = (void *)addr};
-	struct itree_node *res = itree_find(
-		heapindex_root, &ins, heapindex_compare
+	struct itree_node *res = itree_find_closest_under(
+		heapindex_root, &ins, heapindex_compare, heapindex_distance
 	);
 	if (res) return (struct insert *) res->data;
 	return NULL;
