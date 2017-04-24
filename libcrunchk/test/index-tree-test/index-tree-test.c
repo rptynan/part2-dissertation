@@ -33,7 +33,7 @@ void new_inserted(int x) {
 
 _Bool is_inserted(int x) {
 	for (int i = 0; i < inserted_index; i++) {
-		if (inserted_nums[inserted_index] == x) return 1;
+		if (inserted_nums[i] == x) return 1;
 	}
 	return 0;
 }
@@ -47,12 +47,17 @@ void printstuff(void *a) {
 int main() {
 	struct itree_node *root = NULL;
 
+	// We don't want these to be inserted for later tests
+	new_inserted(43);
+	new_inserted(1243);
+	new_inserted(1244);
+
+	// Insert distinct numbers in range [0, 2000)
 	struct my_data *p;
-	// Insert distinct numbers in range [0, 1000)
 	for (int i = 0; i < 100; i++) {
 		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
 		do {
-			p->x = rand() % 1000;
+			p->x = rand() % 2000;
 		} while (is_inserted(p->x));
 		new_inserted(p->x);
 		itree_insert(&root, p, my_compare);
@@ -88,10 +93,23 @@ int main() {
 	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 42);
 	q.x = 42;
 	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 42);
-	q.x = 1299;
+	q.x = 1244;
 	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 1242);
 	q.x = 9000;
 	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 2442);
+
+	// Test remove
+	struct itree_node *found;
+	for (int i = 0; i < 500; i++) {
+		// find numbers in range [500, 1000)
+		q.x = 500 + i;
+		found = itree_find(root, &q, my_compare);
+		if (found) {
+			itree_remove(&root, &q, my_compare);
+			found = itree_find(root, &q, my_compare);
+			assert(!found);
+		}
+	}
 
 	return 0;
 }

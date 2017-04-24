@@ -52,6 +52,85 @@ void itree_insert(
 }
 
 
+/* internal */
+struct itree_node *itree_get_max(
+	struct itree_node *root,
+	itree_compare_func compare
+) {
+	if (!root) return NULL;
+	while (root->right) {
+		root = root->right;
+	}
+	return root;
+}
+
+
+void itree_remove(
+	struct itree_node **proot,
+	void *to_remove,
+	itree_compare_func compare
+) {
+	struct itree_node *r_node = itree_find(*proot, to_remove, compare);
+	if (!r_node) return;
+
+	// Easy case, only one child (or none)
+	if (!r_node->left || !r_node->right) {
+		struct itree_node *subtree = (r_node->left)
+			? r_node->left
+			: r_node->right;
+		if (r_node->parent) {
+			// Link to replace in parent (if not root node)
+			struct itree_node **parent_link;
+			parent_link = (r_node->parent->left == r_node)
+				? &(r_node->parent->left)
+				: &(r_node->parent->right);
+			*parent_link = subtree;
+		}
+		if (subtree) subtree->parent = r_node->parent;  // subtree could be NULL
+	}
+	// Difficult case, need to swap max from left subtree with r_node
+	else {
+		struct itree_node *replacement = itree_get_max(r_node->left, compare);
+		if (replacement == r_node->left) {
+			// Awkward case, left child is the max (and therefore has no right
+			// child), so just splice it in
+			if (r_node->parent) {
+				// Link to replace in parent (if not root node)
+				struct itree_node **parent_link;
+				parent_link = (r_node->parent->left == r_node)
+					? &(r_node->parent->left)
+					: &(r_node->parent->right);
+				*parent_link = replacement;
+			}
+			replacement->parent = r_node->parent;
+			replacement->right = r_node->right;
+			if (r_node->right) r_node->right->parent = replacement;
+		}
+		else {
+			// The max is a leaf and the right child of its parent
+			replacement->parent->right = NULL;
+			if (r_node->parent) {
+				// Link to replace in parent (if not root node)
+				struct itree_node **parent_link;
+				parent_link = (r_node->parent->left == r_node)
+					? &(r_node->parent->left)
+					: &(r_node->parent->right);
+				*parent_link = replacement;
+			}
+			replacement->parent = r_node->parent;
+
+			replacement->left = r_node->left;
+			replacement->right = r_node->right;
+
+			if (r_node->left) r_node->left->parent = replacement;
+			if (r_node->right) r_node->right->parent = replacement;
+		}
+	}
+	// Don't forget to free the removed node
+	__real_free(r_node, M_TEMP);
+}
+
+
 struct itree_node *itree_find(
 	struct itree_node *root,
 	const void *to_find,
