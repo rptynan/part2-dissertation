@@ -15,7 +15,7 @@ MALLOC_DECLARE(M_ITREE_DATA);
 
 struct itree_node {
 	void *data;
-	struct itree_node *left, *right;
+	struct itree_node *parent, *left, *right;
 };
 
 /* function which returns -1 if a < b, 1 if b > a and 0 if a == b */

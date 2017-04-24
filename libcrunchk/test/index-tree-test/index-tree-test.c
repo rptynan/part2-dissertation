@@ -24,6 +24,20 @@ unsigned long my_distance(const void *a, const void *b) {
 	return (unsigned long) (MAX(*aa, *bb) - MIN(*aa, *bb));
 }
 
+int inserted_index = 0;
+int inserted_nums[10000];
+
+void new_inserted(int x) {
+	inserted_nums[inserted_index++] = x;
+}
+
+_Bool is_inserted(int x) {
+	for (int i = 0; i < inserted_index; i++) {
+		if (inserted_nums[inserted_index] == x) return 1;
+	}
+	return 0;
+}
+
 void printstuff(void *a) {
 	struct my_data *aa = (struct my_data *) a;
 	printf("traverse: %d\n", aa->x);
@@ -34,26 +48,31 @@ int main() {
 	struct itree_node *root = NULL;
 
 	struct my_data *p;
+	// Insert distinct numbers in range [0, 1000)
 	for (int i = 0; i < 100; i++) {
-		// Insert numbers in range [200, 1200)
 		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
-		p->x = rand() % 1000 + 200;
-		itree_insert(&root, p, my_compare);
-		// Insert numbers in range [1300, 2300)
-		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
-		p->x = rand() % 1000 + 1300;
+		do {
+			p->x = rand() % 1000;
+		} while (is_inserted(p->x));
+		new_inserted(p->x);
 		itree_insert(&root, p, my_compare);
 	}
-	// We'll look for these (so they're definitely only in there once)
-	p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
-	p->x = 42;
-	itree_insert(&root, p, my_compare);
-	p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
-	p->x = 1242;
-	itree_insert(&root, p, my_compare);
-	p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
-	p->x = 2442;
-	itree_insert(&root, p, my_compare);
+	// We'll look for these, so make sure they're in there
+	if (!is_inserted(42)) {
+		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
+		p->x = 42;
+		itree_insert(&root, p, my_compare);
+	}
+	if (!is_inserted(1242)) {
+		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
+		p->x = 1242;
+		itree_insert(&root, p, my_compare);
+	}
+	if (!is_inserted(2442)) {
+		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
+		p->x = 2442;
+		itree_insert(&root, p, my_compare);
+	}
 
 	// Test find
 	struct my_data q;

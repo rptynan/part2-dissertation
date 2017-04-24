@@ -16,14 +16,17 @@ void itree_insert(
 	void *to_insert,
 	itree_compare_func compare
 ) {
+	struct itree_node *parent = NULL;
 	struct itree_node **parent_link = NULL;
 	struct itree_node *root = *rootp;
 	while (root) {
 		if (compare(to_insert, root->data) < 0) {  // <
+			parent = root;
 			parent_link = &root->left;
 			root = root->left;
 		}
 		else {  // >=
+			parent = root;
 			parent_link = &root->right;
 			root = root->right;
 		}
@@ -37,6 +40,7 @@ void itree_insert(
 	);
 	if (root) {
 		root->data = to_insert;
+		root->parent = parent;
 		root->left = NULL;
 		root->right = NULL;
 		if (parent_link) *parent_link = root;
