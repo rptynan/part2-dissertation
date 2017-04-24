@@ -49,6 +49,15 @@ void pageindex_insert(
 	itree_insert(&pageindex_root, (void *)b, pageindex_compare);
 }
 
+void pageindex_remove(void *begin) {
+	PRINTD1("pageindex_remove: %p", begin);
+	struct big_allocation b = {.begin = begin};
+	void *free_me = itree_remove(
+		&pageindex_root, (void *)&b, pageindex_compare
+	);
+	if (free_me) __real_free(free_me, M_TEMP);
+}
+
 
 extern inline
 struct allocator *(/*__attribute__((always_inline,gnu_inline))*/

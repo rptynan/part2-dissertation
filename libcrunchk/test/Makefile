@@ -9,7 +9,7 @@ DUMPTYPES = $(LIBALLOCS_BASE)/tools/dumptypes
 LIBCRUNCH_OBJS = libcrunch.o liballocs.o pageindex.o generic_malloc.o index_tree.o
 W_FLAGS = -Wall -Wno-format -std=gnu11
 DEBUG_FLAGS = -DDEBUG_CIL_INLINES=2 -DDEBUG_STUBS=2 -g
-WRAP_FLAGS ?= -Wl,-wrap,malloc
+WRAP_FLAGS ?= -Wl,-wrap,malloc,-wrap,free
 
 THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 MAKE = gmake
@@ -20,7 +20,7 @@ RERUN_TESTS_ON_CHANGE =  # Just blanking out from original test makefile
 
 default: checkall
 checkall: clear-stamps checkrun-my-test checkrun-index-tree-test \
-	checkrun-hello-heap
+	checkrun-hello-heap # checkrun-hello-array
 clear-stamps:  # Don't know how to rm these properly
 	find . -name "*-stamp" | xargs rm -f
 

@@ -19,7 +19,7 @@ int heapindex_compare(const void *a, const void *b) {
 	struct insert *aa = (struct insert *) a;
 	struct insert *bb = (struct insert *) b;
 	if (aa->addr < bb->addr) return -1;  // addr a good choice here?
-	if (aa->addr > bb->addr) return +1;
+	if (aa->addr > bb->addr) return +1;  // -> yes because only thing free gets
 	return 0;
 }
 
@@ -51,6 +51,14 @@ void heapindex_insert(
 	ins->alloc_site = (unsigned long) alloc_site;
 	ins->addr = addr;
 	itree_insert(&heapindex_root, (void *)ins, heapindex_compare);
+}
+
+void heapindex_remove(void *addr) {
+	struct insert ins = {.addr = addr};
+	void *free_me = itree_remove(
+		&heapindex_root, (void *)&ins, heapindex_compare
+	);
+	if (free_me) __real_free(free_me, M_TEMP);
 }
 
 
@@ -161,44 +169,37 @@ int __currently_allocating = 0; // TODO mutexes
 
 /* The hook, __real_malloc has same signature */
 #include <libcrunchk/include/index_tree.h>
-void *__wrap_malloc(unsigned long size, struct malloc_type *type, int flags)
+void *__wrap_malloc(unsigned long size, struct malloc_type *mtp, int flags)
 {
 	PRINTD1("malloc called, size: %u", size);
-	if (!type) PRINTD("malloc, no type!");
-	else PRINTD1("malloc called, type: %s", type->ks_shortdesc);
-	PRINTD1("malloc __currently_allocating = %u", __currently_allocating);
+	if (!mtp) PRINTD("malloc, no type!");
+	else PRINTD1("malloc called, type: %s", mtp->ks_shortdesc);
 
-	__currently_allocating++;
+	/* __currently_allocating++; */
+	/* PRINTD1("malloc __currently_allocating = %u", __currently_allocating); */
 	void *ret;
-	ret = __real_malloc(size, type, flags);
+	ret = __real_malloc(size, mtp, flags);
 	if (ret) {
-		static int goes = 1;
-		goes++;
-		PRINTD1("malloc goes: %d", goes);
-		/* if (goes > 1000 && goes % 10000 == 0) { */
 		if (flags & M_WAITOK) {
 			PRINTD("doing it");
 			// TODO we're ignoring M_NOWAITs for now because itree can't do a
 			// malloc during them, but should add a buffer to do M_NOWAITs
 			// later
+			// TODO ensure thread-safety
 			pageindex_insert(ret, ret + size, &__generic_malloc_allocator);
 			void *caller = __builtin_return_address(1);
 			heapindex_insert(caller, ret);
 		}
 	}
-	/* 	// Insert for addr -> insert */
-	/* 	unsigned long i = ADDR_ARRAY_INDEX(ret); */
-	/* 	tagged_insert_array[i].addr = ret; // TODO ?? difference to start? */
-	/* 	tagged_insert_array[i].ins.alloc_site_flag = 0; */
-	/* 	tagged_insert_array[i].ins.alloc_site = (unsigned long) caller; */
-	/* 	tagged_insert_array[i].start = ret; */
-	/* 	tagged_insert_array[i].size = (size_t) size; */
-	/* 	// Insert for allocsite -> uniqtype */
-	/* 	i = ADDR_ARRAY_INDEX(caller); */
-	/* 	tagged_uniqtype_array[i].allocsite = caller; */
-	/* 	tagged_uniqtype_array[i].type = NULL;  // is_aU() first call sets this */
-	/* } */
-	__currently_allocating--;
+	/* __currently_allocating--; */
 	PRINTD1("malloc returning: %p", ret);
 	return ret;
+}
+
+void *__wrap_free(void *addr, struct malloc_type *mtp)
+{
+	PRINTD1("free called, addr: %p", addr);
+	__real_free(addr, mtp);
+	pageindex_remove(addr);
+	heapindex_remove(addr);
 }

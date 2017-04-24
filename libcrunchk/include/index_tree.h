@@ -36,9 +36,10 @@ void itree_insert(
 	itree_compare_func compare
 );
 
-/* Fails silently if node not present. Note: caller is responsible for freeing
- * to_remove */
-void itree_remove(
+/* Note: caller is responsible for freeing to_remove, so this returns the data
+ * pointer from the removed node.
+ * Can return NULL if to_remove not present. */
+void *itree_remove(
 	struct itree_node **proot,
 	void *to_remove,
 	itree_compare_func compare

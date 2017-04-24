@@ -65,13 +65,13 @@ struct itree_node *itree_get_max(
 }
 
 
-void itree_remove(
+void *itree_remove(
 	struct itree_node **proot,
 	void *to_remove,
 	itree_compare_func compare
 ) {
 	struct itree_node *r_node = itree_find(*proot, to_remove, compare);
-	if (!r_node) return;
+	if (!r_node) return NULL;
 
 	// Easy case, only one child (or none)
 	if (!r_node->left || !r_node->right) {
@@ -118,16 +118,17 @@ void itree_remove(
 				*parent_link = replacement;
 			}
 			replacement->parent = r_node->parent;
-
 			replacement->left = r_node->left;
 			replacement->right = r_node->right;
-
 			if (r_node->left) r_node->left->parent = replacement;
 			if (r_node->right) r_node->right->parent = replacement;
 		}
 	}
+
 	// Don't forget to free the removed node
+	void *res = r_node->data;
 	__real_free(r_node, M_TEMP);
+	return res;
 }
 
 
