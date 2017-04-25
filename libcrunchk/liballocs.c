@@ -96,7 +96,7 @@ extern inline struct liballocs_err *__liballocs_get_alloc_info(
 			a = __liballocs_leaf_allocator_for(
 				obj, &containing_bigalloc, &maybe_the_allocation
 			);
-			return &__liballocs_err_abort;
+			if (!a) return &__liballocs_err_abort;
 		}
 		else
 		{
