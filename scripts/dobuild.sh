@@ -76,7 +76,7 @@ if [[ ! -z $COMPILER ]]; then
 	CC=$CC \
 	COPTFLAGS="-O -pipe" \
 	COMPILER_TYPE="gcc" \
-	CPPFLAGS="" CXXFLAGS="" LDFLAGS="--wrap malloc" \
+	CPPFLAGS="" CXXFLAGS="" LDFLAGS="--wrap malloc --wrap free" \
 	WITHOUT_FORMAT_EXTENSIONS=no \
 	/usr/bin/time \
 	make buildkernel $KERNFAST MODULES_OVERRIDE= KERNCONF=CRUNCHED \
