@@ -26,7 +26,7 @@ typedef int (*itree_compare_func)(const void *a, const void *b);
 typedef unsigned long (*itree_distance_func)(const void *a, const void *b);
 
 /* function to be applied to the data field in a traversal */
-typedef void (*itree_traverse_func)(void *a);
+typedef void (*itree_traverse_func)(void *a, int depth);
 
 /* Note: the data to_insert points to must have an appropriate allocation
  * lifetime, e.g. heap, only the pointer is copied by insert */
@@ -63,7 +63,8 @@ extern struct itree_node *itree_find_closest_under(
 
 void itree_inorder_traverse(
 	struct itree_node *root,
-	itree_traverse_func func
+	itree_traverse_func func,
+	int depth
 );
 
 #endif /* INDEX_TREE_H */

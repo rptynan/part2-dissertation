@@ -5,10 +5,14 @@
 #define MAX(x, y) (x > y ? x : y)
 #define MIN(x, y) (x < y ? x : y)
 
+#define TEST_RANGE 1000000
+#define TEST_ITEMS TEST_RANGE / 4
+
 
 struct my_data {
 	int x;
 };
+struct itree_node *root = NULL;
 
 int my_compare(const void *a, const void *b) {
 	struct my_data *aa = (struct my_data *) a;
@@ -24,92 +28,86 @@ unsigned long my_distance(const void *a, const void *b) {
 	return (unsigned long) (MAX(*aa, *bb) - MIN(*aa, *bb));
 }
 
+
+
 int inserted_index = 0;
-int inserted_nums[10000];
+_Bool inserted_nums[TEST_RANGE * 2] = {};
 
 void new_inserted(int x) {
-	inserted_nums[inserted_index++] = x;
+	inserted_nums[x] = 1;
 }
 
 _Bool is_inserted(int x) {
-	for (int i = 0; i < inserted_index; i++) {
-		if (inserted_nums[i] == x) return 1;
-	}
-	return 0;
+	return inserted_nums[x];
 }
 
-void printstuff(void *a) {
+void remove_inserted(int x) {
+	inserted_nums[x] = 0;
+}
+
+void printstuff(void *a, int depth) {
 	struct my_data *aa = (struct my_data *) a;
-	printf("traverse: %d\n", aa->x);
+	printf("%dtraverse: %d\n", depth, aa->x);
+}
+
+
+
+void test_find_closest_under() {
+	for (int i = 0; i < TEST_RANGE; i++) {
+		if (is_inserted(i)) {
+			int j = 0;
+			for (; !is_inserted(i + j + 1) && i + j < TEST_RANGE; j++);
+			struct my_data q;
+			q.x = i + j;
+			assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == i);
+		}
+	}
+	printf("test_find_closest_under passed\n");
+}
+
+void test_find() {
+	for (int i = 0; i < TEST_RANGE; i++) {
+		if (is_inserted(i)) {
+			struct my_data q;
+			q.x = i;
+			assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == i);
+		}
+	}
+	printf("test_find passed\n");
 }
 
 
 int main() {
-	struct itree_node *root = NULL;
-
-	// We don't want these to be inserted for later tests
-	new_inserted(43);
-	new_inserted(1243);
-	new_inserted(1244);
-
 	// Insert distinct numbers in range [0, 2000)
 	struct my_data *p;
-	for (int i = 0; i < 100; i++) {
+	for (int i = 0; i < TEST_ITEMS; i++) {
 		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
 		do {
-			p->x = rand() % 2000;
+			p->x = rand() % TEST_RANGE;
 		} while (is_inserted(p->x));
 		new_inserted(p->x);
 		itree_insert(&root, p, my_compare);
 	}
-	// We'll look for these, so make sure they're in there
-	if (!is_inserted(42)) {
-		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
-		p->x = 42;
-		itree_insert(&root, p, my_compare);
-	}
-	if (!is_inserted(1242)) {
-		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
-		p->x = 1242;
-		itree_insert(&root, p, my_compare);
-	}
-	if (!is_inserted(2442)) {
-		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
-		p->x = 2442;
-		itree_insert(&root, p, my_compare);
-	}
 
-	// Test find
-	struct my_data q;
-	q.x = 42;
-	assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == 42);
-	q.x = 1242;
-	assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == 1242);
-	q.x = 2442;
-	assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == 2442);
+	test_find();
+	test_find_closest_under();
 
-	// Test find closest under
-	q.x = 43;
-	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 42);
-	q.x = 42;
-	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 42);
-	q.x = 1244;
-	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 1242);
-	q.x = 9000;
-	assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == 2442);
-
-	// Test remove
+	// do some removals
 	struct itree_node *found;
-	for (int i = 0; i < 500; i++) {
-		// find numbers in range [500, 1000)
-		q.x = 500 + i;
-		found = itree_find(root, &q, my_compare);
-		if (found) {
-			itree_remove(&root, &q, my_compare);
-			found = itree_find(root, &q, my_compare);
-			assert(!found);
+	for (int i = 0; i < TEST_RANGE; i++) {
+		if (is_inserted(i)) {
+			int doit = rand() % 2;
+			if (doit) {
+				struct my_data q;
+				q.x = i;
+				free(itree_remove(&root, &q, my_compare), M_ITREE_DATA);
+				remove_inserted(i);
+			}
 		}
 	}
+
+	test_find();
+	test_find_closest_under();
 
 	return 0;
 }

@@ -8,8 +8,8 @@ void *malloc(unsigned long size, struct malloc_type *type, int flags);
 void *__real_malloc(unsigned long size, struct malloc_type *type, int flags) {
 	return malloc(size, type, flags);
 }
-void *free(void *addr, struct malloc_type *type);
-void *__real_free(void *addr, struct malloc_type *type) {
+void free(void *addr, struct malloc_type *type);
+void __real_free(void *addr, struct malloc_type *type) {
 	return free(addr, type);
 }
 #else

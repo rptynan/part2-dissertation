@@ -64,6 +64,30 @@ struct itree_node *itree_get_max(
 	return root;
 }
 
+struct itree_node *itree_get_min(
+	struct itree_node *root,
+	itree_compare_func compare
+) {
+	if (!root) return NULL;
+	while (root->left) {
+		root = root->left;
+	}
+	return root;
+}
+
+#define replace_parent_link() \
+if (r_node->parent) {														\
+	/* Link to replace in parent (if not root node) */						\
+	struct itree_node **parent_link;										\
+	parent_link = (r_node->parent->left == r_node)							\
+		? &(r_node->parent->left)											\
+		: &(r_node->parent->right);											\
+	*parent_link = replacement;												\
+}																			\
+else {																		\
+	*proot = replacement;													\
+}
+
 
 void *itree_remove(
 	struct itree_node **proot,
@@ -75,18 +99,11 @@ void *itree_remove(
 
 	// Easy case, only one child (or none)
 	if (!r_node->left || !r_node->right) {
-		struct itree_node *subtree = (r_node->left)
+		struct itree_node *replacement = (r_node->left)
 			? r_node->left
 			: r_node->right;
-		if (r_node->parent) {
-			// Link to replace in parent (if not root node)
-			struct itree_node **parent_link;
-			parent_link = (r_node->parent->left == r_node)
-				? &(r_node->parent->left)
-				: &(r_node->parent->right);
-			*parent_link = subtree;
-		}
-		if (subtree) subtree->parent = r_node->parent;  // subtree could be NULL
+		replace_parent_link();
+		if (replacement) replacement->parent = r_node->parent;  // replacement could be NULL
 	}
 	// Difficult case, need to swap max from left subtree with r_node
 	else {
@@ -94,32 +111,22 @@ void *itree_remove(
 		if (replacement == r_node->left) {
 			// Awkward case, left child is the max (and therefore has no right
 			// child), so just splice it in
-			if (r_node->parent) {
-				// Link to replace in parent (if not root node)
-				struct itree_node **parent_link;
-				parent_link = (r_node->parent->left == r_node)
-					? &(r_node->parent->left)
-					: &(r_node->parent->right);
-				*parent_link = replacement;
-			}
+			replace_parent_link();
 			replacement->parent = r_node->parent;
 			replacement->right = r_node->right;
 			if (r_node->right) r_node->right->parent = replacement;
 		}
 		else {
-			// The max is a leaf and the right child of its parent
-			replacement->parent->right = NULL;
-			if (r_node->parent) {
-				// Link to replace in parent (if not root node)
-				struct itree_node **parent_link;
-				parent_link = (r_node->parent->left == r_node)
-					? &(r_node->parent->left)
-					: &(r_node->parent->right);
-				*parent_link = replacement;
-			}
+			// The max is a leaf and the right child of its parent and we stich
+			// its left child to its parent
+			replacement->parent->right = replacement->left;
+			// link with parent
+			replace_parent_link();
 			replacement->parent = r_node->parent;
+			// set replacement's childrens to r_node's
 			replacement->left = r_node->left;
 			replacement->right = r_node->right;
+			// set r_node's children to have parent replacement
 			if (r_node->left) r_node->left->parent = replacement;
 			if (r_node->right) r_node->right->parent = replacement;
 		}
@@ -159,8 +166,11 @@ extern struct itree_node *itree_find_closest_under(
 ) {
 	if (!root) return NULL;
 
-	void *closest_node = root;
-	unsigned long min_distance = distance(root->data, to_find);
+	// TODO we need to find a node to set out closest node to at the beginning
+	// root doesn't work because it might be above but very close
+	// so hack for now is to set to the minimum
+	struct itree_node *closest_node = itree_get_min(root, compare);
+	unsigned long min_distance = distance(closest_node->data, to_find);
 	while (root) {
 		if (compare(to_find, root->data) == 0) return root;
 		else if (compare(to_find, root->data) < 0) {  // <
@@ -183,12 +193,13 @@ extern struct itree_node *itree_find_closest_under(
 
 void itree_inorder_traverse(
 	struct itree_node *root,
-	itree_traverse_func func
+	itree_traverse_func func,
+	int depth
 ) {
 	if (!root) return;
 
-	itree_inorder_traverse(root->left, func);
-	func(root->data);
-	itree_inorder_traverse(root->right, func);
+	itree_inorder_traverse(root->left, func, depth + 1);
+	func(root->data, depth);
+	itree_inorder_traverse(root->right, func, depth + 1);
 }
 
