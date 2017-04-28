@@ -80,7 +80,7 @@ _build-%: $(LIBCRUNCH_OBJS)
 	# move all the included types to .meta so they don't screw up later steps
 	objdump -t $* | egrep "__uniqtype_[0-9a-f]{8}" | tr -s "[:blank:]" "\t" | cut -d '	' -f 6 | sed 's/^.\(.*\)/\n--rename-section \.data\.\1=\.meta\.\1/' | xargs -n 100 objcopy $*
 	# debug
-	cp $* $*.without_types
+	# cp $* $*.without_types
 	# dump the types of that
 	$(DUMPTYPES) $* > types.c 2> /dev/null
 	$(TYPESSPLITTER) types.c 1
@@ -122,4 +122,4 @@ clean: clear-stamps
 	rm -f $(filter-out .,$(patsubst %.c,%,$(shell find . -name '*.c')))
 	rm -f $(filter-out .,$(patsubst %.cc,%,$(shell find . -name '*.cc')))
 	find . -name 'types*.*' -o -name '*.cil.*'  -o -name '*.i' -o -name '*.o' \
-		-o -name '*.s' -o -name '*.allocs' | xargs rm -f
+		-o -name '*.s' -o -name '*.allocs' -o -name '*.without_types' | xargs rm -f
