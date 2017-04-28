@@ -43,11 +43,12 @@ struct insert *heapindex_lookup(const void *addr) {
 
 void heapindex_insert(
 	void *alloc_site,
-	void *addr
+	void *addr,
+	_Bool alloc_site_is_actually_uniqtype
 ) {
 	struct insert *ins =
 		__real_malloc(sizeof(struct insert), M_TEMP, M_WAITOK);
-	ins->alloc_site_flag = 0;
+	ins->alloc_site_flag = alloc_site_is_actually_uniqtype;
 	ins->alloc_site = (unsigned long) alloc_site;
 	ins->addr = addr;
 	itree_insert(&heapindex_root, (void *)ins, heapindex_compare);
@@ -188,7 +189,7 @@ void *__wrap_malloc(unsigned long size, struct malloc_type *mtp, int flags)
 			// TODO ensure thread-safety
 			pageindex_insert(ret, ret + size, &__generic_malloc_allocator);
 			void *caller = __builtin_return_address(1);
-			heapindex_insert(caller, ret);
+			heapindex_insert(caller, ret, 0);
 		}
 	}
 	/* __currently_allocating--; */

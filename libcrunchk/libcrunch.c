@@ -211,6 +211,8 @@ void __libcrunch_scan_lazy_typenames(void *blah)
 	PRINTD("__libcrunch_scan_lazy_typenames");
 }
 
+// FIXME TODO this most definitely should be properly sysinited, because
+// statics are dealt with in liballocs init.
 int __libcrunch_global_init(void)
 {
 	PRINTD("__libcrunch_global_init");
@@ -272,6 +274,7 @@ int __libcrunch_check_init(void)
 	}
 	return 0;
 }
+
 
 int __is_a_internal(const void *obj, const void *arg)
 {

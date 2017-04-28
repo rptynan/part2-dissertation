@@ -2,6 +2,11 @@
 import sys
 import re
 
+include_header = \
+    '#ifdef _KERNEL\n#include <libcrunchk/types/typesheader.h>\n' \
+    '#else\n#include <typesheader.h>\n' \
+    '#endif\n\n'
+
 # Given ['line1', 'line2', 'line3', 'line4'] and 'line3' will return
 # ('line1\nline2', ['line3', 'line4'])
 def split_up_to_string(lines, string):
@@ -9,6 +14,18 @@ def split_up_to_string(lines, string):
     res1 = '\n'.join(lines[:i])
     res2 = lines[i:]
     return (res1, res2)
+
+# Make sure to put everything in .meta
+def replace_sections(string):
+    string = string.replace(
+        'struct frame_allocsite_entry frame_vaddrs[] = {',
+        'struct frame_allocsite_entry __attribute__((section (".meta"))) frame_vaddrs[] = {'
+    )
+    string = string.replace(
+        'struct static_allocsite_entry statics[] = {',
+        'struct static_allocsite_entry __attribute__((section (".meta"))) statics[] = {'
+    )
+    return string.replace('.data.', '.meta.')
 
 
 # args
@@ -67,10 +84,6 @@ for v in codeless:
         print(v)
         sys.exit()
     codeless_map[k] = v
-# Debug
-# print(codeless_map.keys()[0])
-# print(codeless_map[codeless_map.keys()[0]])
-# print(codeless_map['__uniqtype_c95a47f2__usr_obj_usr_src_sys_CRUNCHED___machine_pmap_h_307'])
 
 
 print('Splitting into {} types*.c files'.format(split_num))
@@ -88,9 +101,6 @@ for i in range(1, split_num + 1):
             k = re.search(regex, uniqtype).group(1)
         except Exception as e:
             # This should just fail on comments, so ignore
-            # print(e)
-            # print('Regex failed!2')
-            # print(uniqtype)
             continue;
 
         # .get(k) because if not in codeless types don't worry about it
@@ -98,15 +108,15 @@ for i in range(1, split_num + 1):
     uniqtypes = uniqtypes[per_file:]
 
     with open('types{}.c'.format(i), 'w') as f:
-        f.write('#include <libcrunchk/types/typesheader.h>\n\n')
-        f.write(output)
+        f.write(include_header)
+        f.write(replace_sections(output))
 
 
 with open('typesheader.h', 'w') as f:
-    f.write(header)
+    f.write(replace_sections(header))
 
 with open('typesstack.c', 'w') as f:
-    f.write('#include <libcrunchk/types/typesheader.h>\n\n')
-    f.write(stacktypes)
+    f.write(include_header)
+    f.write(replace_sections(stacktypes))
     f.write('\n\n')
-    f.write(allocstuff)
+    f.write(replace_sections(allocstuff))

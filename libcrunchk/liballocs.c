@@ -23,6 +23,8 @@ unsigned long __liballocs_hit_static_case = 0;
 unsigned long __liballocs_aborted_unindexed_heap = 0;
 unsigned long __liballocs_aborted_unrecognised_allocsite = 0;
 
+_Bool __liballocs_is_initialized = 0;
+
 /* built-in errors */
 struct liballocs_err __liballocs_err_not_impl
  = {"Not implemented"};
@@ -68,8 +70,10 @@ struct uniqtype unset__uniqtype__ = {{0}};
 extern inline void __liballocs_ensure_init(void)
 {
 	PRINTD("__liballocs_ensure_init");
-	// TODO liballocs.h
-	return;
+	if (unlikely(!__liballocs_is_initialized)) {
+		__liballocs_is_initialized = 1;
+		__static_allocator_init();
+	}
 }
 
 extern inline struct liballocs_err *__liballocs_get_alloc_info(
@@ -126,7 +130,11 @@ extern inline _Bool __liballocs_find_matching_subobject(
 	struct uniqtype **p_cur_containing_uniqtype,
 	struct uniqtype_rel_info **p_cur_contained_pos
 ) {
-	PRINTD("__liballocs_find_matching_subobject");
+	PRINTD2(
+		"__liballocs_find_matching_subobject, test: %p, alloc: %p",
+		test_uniqtype,
+		cur_obj_uniqtype
+	);
 	if (target_offset_within_uniqtype == 0 
 		&& (!test_uniqtype || cur_obj_uniqtype == test_uniqtype))
 	{
@@ -196,7 +204,7 @@ extern inline _Bool __liballocs_find_matching_subobject(
 }
 
 
-/* stolen from libkern, to avoid outside calls? */
+/* stolen from libkern, to avoid outside calls */
 static int strncmp(const char *s1, const char *s2, size_t n)
 {
 	if (n == 0)

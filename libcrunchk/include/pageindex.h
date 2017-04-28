@@ -109,6 +109,8 @@ extern void pageindex_insert(
 	struct allocator *allocated_by
 );
 
+void pageindex_remove(void *begin);
+
 extern /*inline*/
 struct allocator *(/*__attribute__((always_inline,gnu_inline))*/
 __liballocs_leaf_allocator_for) (

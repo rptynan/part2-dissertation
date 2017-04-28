@@ -1,15 +1,17 @@
 LIBALLOCS_BASE = /usr/local/src/liballocs
 LIBCRUNCH_BASE := /usr/local/src/libcrunch
+LIBCRUNCHK_BASE := /usr/local/src/part2-dissertation-code/libcrunchk
 
 CRUNCHCC ?= $(LIBCRUNCH_BASE)/frontend/c/bin/crunchcc
 # CRUNCHCC = /usr/bin/gcc
 PLAIN_CC = /usr/bin/gcc
 DUMPTYPES = $(LIBALLOCS_BASE)/tools/dumptypes
+TYPESSPLITTER = python2 $(LIBCRUNCHK_BASE)/../scripts/typessplitter/split.py
 
-LIBCRUNCH_OBJS = libcrunch.o liballocs.o pageindex.o generic_malloc.o index_tree.o
+LIBCRUNCH_OBJS = libcrunch.o liballocs.o pageindex.o generic_malloc.o static.o index_tree.o
 W_FLAGS = -Wall -Wno-format -std=gnu11
 DEBUG_FLAGS = -DDEBUG_CIL_INLINES=2 -DDEBUG_STUBS=2 -g
-WRAP_FLAGS ?= -Wl,-wrap,malloc,-wrap,free
+WRAP_FLAGS ?= -Wl,-wrap,malloc,-wrap,free,-T,../ldscript
 
 THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 MAKE = gmake
@@ -20,7 +22,7 @@ RERUN_TESTS_ON_CHANGE =  # Just blanking out from original test makefile
 
 default: checkall
 checkall: clear-stamps checkrun-my-test checkrun-index-tree-test \
-	checkrun-hello-heap # checkrun-hello-array
+	checkrun-hello-heap checkrun-hello-array
 clear-stamps:  # Don't know how to rm these properly
 	find . -name "*-stamp" | xargs rm -f
 
@@ -71,10 +73,24 @@ _onlygdbrun-%:
 
 # Rule which can be run from test dirs to build the exec
 _build-%: $(LIBCRUNCH_OBJS)
+	# crunchcc the target
 	$(CRUNCHCC) $*.c -c -o $*.o $(DEBUG_FLAGS) $(W_FLAGS) -include ../testsheader.h -DIS_INTERNAL_TEST=$(IS_INTERNAL_TEST)
-	$(DUMPTYPES) $*.o > types.c 2> /dev/null
-	$(PLAIN_CC) types.c -c -o types.o
-	$(PLAIN_CC) $(LIBCRUNCH_OBJS) types.o $*.o -o $* $(WRAP_FLAGS) -lc $(DEBUG_FLAGS)
+	# link without types
+	$(PLAIN_CC) $(LIBCRUNCH_OBJS) $*.o -o $* $(WRAP_FLAGS) -lc $(DEBUG_FLAGS) -Wl,--Map,/tmp/ldmap1
+	# move all the included types to .meta so they don't screw up later steps
+	objdump -t $* | egrep "__uniqtype_[0-9a-f]{8}" | tr -s "[:blank:]" "\t" | cut -d '	' -f 6 | sed 's/^.\(.*\)/\n--rename-section \.data\.\1=\.meta\.\1/' | xargs -n 100 objcopy $*
+	# debug
+	cp $* $*.without_types
+	# dump the types of that
+	$(DUMPTYPES) $* > types.c 2> /dev/null
+	$(TYPESSPLITTER) types.c 1
+	# then build types
+	$(PLAIN_CC) types1.c -c -o types1.o -I.
+	$(PLAIN_CC) typesstack.c -c -o typesstack.o -I.
+	objcopy --weaken types1.o
+	objcopy --weaken typesstack.o
+	# then link with types
+	$(PLAIN_CC) $(LIBCRUNCH_OBJS) types1.o typesstack.o $*.o -o $* $(WRAP_FLAGS) -lc $(DEBUG_FLAGS) -Wl,--Map,/tmp/ldmap2
 
 build-%:
 	$(MAKE) -C "$*" $(INCLUDE_MK_INC) -f ../Makefile _build-$*
@@ -105,5 +121,5 @@ clean: clear-stamps
 	# (delete anything whose name is a prefix of a .c file's and doesn't contain a dot)
 	rm -f $(filter-out .,$(patsubst %.c,%,$(shell find . -name '*.c')))
 	rm -f $(filter-out .,$(patsubst %.cc,%,$(shell find . -name '*.cc')))
-	find . -name 'types.c' -o -name '*.cil.*'  -o -name '*.i' -o -name '*.o' \
+	find . -name 'types*.*' -o -name '*.cil.*'  -o -name '*.i' -o -name '*.o' \
 		-o -name '*.s' -o -name '*.allocs' | xargs rm -f

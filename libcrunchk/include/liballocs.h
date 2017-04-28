@@ -127,4 +127,14 @@ liballocs_err_t extract_and_output_alloc_site_and_type(
 */
 struct insert *__liballocs_get_insert(const void *mem);
 
+struct insert *heapindex_lookup(const void *addr);
+
+void heapindex_insert(
+	void *alloc_site,
+	void *addr,
+	_Bool alloc_site_is_actually_uniqtype
+);
+
+void __static_allocator_init(void);
+
 #endif /* LIBALLOCS_H */

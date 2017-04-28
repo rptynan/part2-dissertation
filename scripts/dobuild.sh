@@ -83,8 +83,11 @@ if [[ ! -z $COMPILER ]]; then
 	1>  ~/log 2> ~/errorlog
 	if [[ $? != 0 ]]; then
 		echo "Build failed, logs in ~, exiting"
+		cat ~/log | grep -oE "[/_a-zA-Z0-9]*\.c"
 		exit
 	fi
+	echo "Build succeeded, files built:"
+	cat ~/log | grep -oE "[/_a-zA-Z0-9]*\.c"
 fi
 
 if $INSTALL_REBOOT; then

@@ -59,5 +59,6 @@ extern int __currently_allocating;
 extern int __currently_freeing;
 
 extern struct allocator __generic_malloc_allocator;
+extern struct allocator __static_allocator;
 
 #endif /* ALLOC_META_H */
