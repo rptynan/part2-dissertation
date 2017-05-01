@@ -2,9 +2,6 @@
 #include <assert.h>
 #include <stdio.h>
 
-#define MAX(x, y) (x > y ? x : y)
-#define MIN(x, y) (x < y ? x : y)
-
 #define TEST_RANGE 1000000
 #define TEST_ITEMS TEST_RANGE / 4
 #define TEST_ITERS 100

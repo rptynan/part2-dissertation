@@ -87,54 +87,6 @@ if (r_node->parent) {														\
 else {																		\
 	*proot = replacement;													\
 }
-
-
-/* internal */
-void itree_insert_node(
-	struct itree_node **rootp,
-	struct itree_node *to_insert,
-	itree_compare_func compare
-) {
-	struct itree_node *parent = NULL;
-	struct itree_node **parent_link = NULL;
-	struct itree_node *root = *rootp;
-	while (root) {
-		if (compare(to_insert->data, root->data) < 0) {  // <
-			parent = root;
-			parent_link = &root->left;
-			root = root->left;
-		}
-		else {  // >=
-			parent = root;
-			parent_link = &root->right;
-			root = root->right;
-		}
-	}
-
-	if (parent_link) *parent_link = to_insert;
-	to_insert->parent = parent;
-	if (!*rootp) *rootp = to_insert;
-	return;
-}
-
-
-/* internal */
-void *itree_remove_slow(
-	struct itree_node **proot,
-	void *to_remove,
-	itree_compare_func compare
-) {
-	struct itree_node *r_node = itree_find(*proot, to_remove, compare);
-	if (!r_node) return NULL;
-	replace_parent_link(r_node, NULL);
-	if (r_node->left) itree_insert_node(proot, r_node->left, compare);
-	if (r_node->right) itree_insert_node(proot, r_node->right, compare);
-	void *res = r_node->data;
-	__real_free(r_node, M_TEMP);
-	return res;
-}
-
-
 void *itree_remove(
 	struct itree_node **proot,
 	void *to_remove,
@@ -163,11 +115,10 @@ void *itree_remove(
 			if (r_node->right) r_node->right->parent = replacement;
 		}
 		else {
-			return itree_remove_slow(proot, to_remove, compare);
 			// The max is a leaf and the right child of its parent and we stich
 			// its left child to its parent
 			replacement->parent->right = replacement->left;
-			if (replacement->left) replacement->left->parent = replacement;
+			if (replacement->left) replacement->left->parent = replacement->parent;
 			// link with parent
 			replace_parent_link(r_node, replacement);
 			replacement->parent = r_node->parent;
