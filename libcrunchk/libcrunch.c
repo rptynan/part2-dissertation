@@ -343,7 +343,9 @@ int __is_a_internal(const void *obj, const void *arg)
 	{
 		// HACK: for now, assume that the repetition continues to the end
 		range_limit = (char*) alloc_start + alloc_size_bytes;
-		target_offset_within_uniqtype %= alloc_uniqtype->pos_maxoff;
+		if (alloc_uniqtype->pos_maxoff) {
+			target_offset_within_uniqtype %= alloc_uniqtype->pos_maxoff;
+		}
 		range_base = (char*) alloc_start + target_offset_within_uniqtype; // FIXME: please check
 	}
 	else
@@ -471,6 +473,10 @@ int __is_a_internal(const void *obj, const void *arg)
 					PRINTD1(
 						"originating at %p",
 						alloc_site
+					);
+					PRINTD1(
+						"alloc type of %p",
+						alloc_uniqtype
 					);
 
 					last_failed_site = __builtin_return_address(0);

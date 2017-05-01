@@ -2,6 +2,16 @@
 #include <libcrunchk/include/index_tree.h>
 #include <libcrunchk/include/pageindex.h>
 #include <libcrunchk/include/allocmeta.h>
+#ifdef _KERNEL
+  // CTASSERT, for sysctl
+  #include <sys/cdefs.h>
+  #include <sys/param.h>
+  #include <sys/systm.h>
+#endif
+// sysctl
+#include <sys/types.h>
+#include <sys/sysctl.h>
+
 
 /* special uniqtypes */
 struct uniqtype *pointer_to___uniqtype__void;
@@ -13,15 +23,37 @@ struct uniqtype *pointer_to___uniqtype__Elf64_auxv_t;
 struct uniqtype *pointer_to___uniqtype____ARR0_signed_char;
 struct uniqtype *pointer_to___uniqtype__intptr_t;
 
-/* counters TODO sysctl? */
-unsigned long __liballocs_aborted_stack = 0;
-unsigned long __liballocs_aborted_static = 0;
-unsigned long __liballocs_aborted_unknown_storage = 0;
-unsigned long __liballocs_hit_heap_case = 0;
-unsigned long __liballocs_hit_stack_case = 0;
-unsigned long __liballocs_hit_static_case = 0;
-unsigned long __liballocs_aborted_unindexed_heap = 0;
-unsigned long __liballocs_aborted_unrecognised_allocsite = 0;
+
+/* Counters, macro will define the unsigned long to store the value and then
+ * define a sysctl MIB under the debug.liballocs parent node */
+#ifdef _KERNEL
+  static SYSCTL_NODE(
+	_debug, OID_AUTO, liballocs, CTLFLAG_RD, 0, "liballocs stats"
+  );
+  #define LIBALLOCS_COUNTER(name) \
+	unsigned long int __liballocs_ ## name = 0; \
+	SYSCTL_ULONG( \
+		_debug_liballocs, OID_AUTO, name, CTLFLAG_RD, \
+		&__liballocs_ ## name, \
+		sizeof(__liballocs_ ## name), \
+		"__liballocs_" #name \
+	)
+#else
+  /* In the (userspace) test case, when we don't have the kernel stuff, just
+   * ignore syctl */
+  #define LIBALLOCS_COUNTER(name) \
+	unsigned long int __liballocs_ ## name = 0;
+#endif
+
+LIBALLOCS_COUNTER(aborted_stack);
+LIBALLOCS_COUNTER(aborted_static);
+LIBALLOCS_COUNTER(aborted_unknown_storage);
+LIBALLOCS_COUNTER(hit_heap_case);
+LIBALLOCS_COUNTER(hit_stack_case);
+LIBALLOCS_COUNTER(hit_static_case);
+LIBALLOCS_COUNTER(aborted_unindexed_heap);
+LIBALLOCS_COUNTER(aborted_unrecognised_allocsite);
+
 
 _Bool __liballocs_is_initialized = 0;
 
@@ -46,6 +78,7 @@ struct liballocs_err __liballocs_err_unrecognised_static_object
  = { "unrecognised static object" };
 struct liballocs_err __liballocs_err_object_of_unknown_storage
  = { "object of unknown storage" };
+
 
 /* allocsite -> uniqtype index */
 struct uniqtype_index_node {
@@ -205,7 +238,7 @@ extern inline _Bool __liballocs_find_matching_subobject(
 
 
 /* stolen from libkern, to avoid outside calls */
-static int strncmp(const char *s1, const char *s2, size_t n)
+static int __liballocs_strncmp(const char *s1, const char *s2, size_t n)
 {
 	if (n == 0)
 		return (0);
@@ -240,12 +273,12 @@ const char *(__attribute__((pure)) __liballocs_uniqtype_name)(
 	const char *symbol_name = __liballocs_uniqtype_symbol_name(u);
 	if (symbol_name)
 	{
-		if (0 == strncmp(symbol_name, "__uniqtype__", sizeof "__uniqtype__" - 1))
+		if (0 == __liballocs_strncmp(symbol_name, "__uniqtype__", sizeof "__uniqtype__" - 1))
 		{
 			/* Codeless. */
 			return symbol_name + sizeof "__uniqtype__" - 1;
 		}
-		else if (0 == strncmp(symbol_name, "__uniqtype_", sizeof "__uniqtype_" - 1))
+		else if (0 == __liballocs_strncmp(symbol_name, "__uniqtype_", sizeof "__uniqtype_" - 1))
 		{
 			/* With code. */
 			return symbol_name + sizeof "__uniqtype_" - 1 + /* code + underscore */ 9;

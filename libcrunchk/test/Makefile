@@ -77,8 +77,6 @@ _build-%: $(LIBCRUNCH_OBJS)
 	$(CRUNCHCC) $*.c -c -o $*.o $(DEBUG_FLAGS) $(W_FLAGS) -include ../testsheader.h -DIS_INTERNAL_TEST=$(IS_INTERNAL_TEST)
 	# link without types
 	$(PLAIN_CC) $(LIBCRUNCH_OBJS) $*.o -o $* $(WRAP_FLAGS) -lc $(DEBUG_FLAGS) -Wl,--Map,/tmp/ldmap1
-	# move all the included types to .meta so they don't screw up later steps
-	objdump -t $* | egrep "__uniqtype_[0-9a-f]{8}" | tr -s "[:blank:]" "\t" | cut -d '	' -f 6 | sed 's/^.\(.*\)/\n--rename-section \.data\.\1=\.meta\.\1/' | xargs -n 100 objcopy $*
 	# debug
 	# cp $* $*.without_types
 	# dump the types of that
