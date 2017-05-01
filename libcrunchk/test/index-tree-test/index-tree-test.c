@@ -7,9 +7,11 @@
 
 #define TEST_RANGE 1000000
 #define TEST_ITEMS TEST_RANGE / 4
+#define TEST_ITERS 100
 
 
 struct my_data {
+	int y[10];
 	int x;
 };
 struct itree_node *root = NULL;
@@ -23,9 +25,9 @@ int my_compare(const void *a, const void *b) {
 }
 
 unsigned long my_distance(const void *a, const void *b) {
-	int *aa = (int *) a;
-	int *bb = (int *) b;
-	return (unsigned long) (MAX(*aa, *bb) - MIN(*aa, *bb));
+	struct my_data *aa = (struct my_data *) a;
+	struct my_data *bb = (struct my_data *) b;
+	return (unsigned long) (MAX(aa->x, bb->x) - MIN(aa->x, bb->x));
 }
 
 
@@ -76,11 +78,9 @@ void test_find() {
 	printf("test_find passed\n");
 }
 
-
-int main() {
-	// Insert distinct numbers in range [0, 2000)
+void insert_some(int num) {
 	struct my_data *p;
-	for (int i = 0; i < TEST_ITEMS; i++) {
+	for (int i = 0; i < num; i++) {
 		p = malloc(sizeof(struct my_data), M_ITREE_DATA, NULL);
 		do {
 			p->x = rand() % TEST_RANGE;
@@ -88,15 +88,13 @@ int main() {
 		new_inserted(p->x);
 		itree_insert(&root, p, my_compare);
 	}
+}
 
-	test_find();
-	test_find_closest_under();
-
-	// do some removals
+void remove_some(int prob) {
 	struct itree_node *found;
 	for (int i = 0; i < TEST_RANGE; i++) {
 		if (is_inserted(i)) {
-			int doit = rand() % 2;
+			int doit = rand() % prob;
 			if (doit) {
 				struct my_data q;
 				q.x = i;
@@ -105,9 +103,19 @@ int main() {
 			}
 		}
 	}
+}
 
-	test_find();
-	test_find_closest_under();
+
+int main() {
+
+	for (int i = 0; i < TEST_ITERS; i++) {
+		insert_some(TEST_ITEMS / TEST_ITERS);
+		test_find();
+		test_find_closest_under();
+		remove_some(TEST_ITERS);
+		test_find();
+		test_find_closest_under();
+	}
 
 	return 0;
 }
