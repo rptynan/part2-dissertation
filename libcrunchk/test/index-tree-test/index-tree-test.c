@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-#define TEST_RANGE 1000000
+#define TEST_RANGE 100000
 #define TEST_ITEMS TEST_RANGE / 4
 #define TEST_ITERS 100
 
@@ -85,21 +85,25 @@ void insert_some(int num) {
 		new_inserted(p->x);
 		itree_insert(&root, p, my_compare);
 	}
+	printf("  added %d\n", num);
 }
 
 void remove_some(int prob) {
 	struct itree_node *found;
+	int num = 0;
 	for (int i = 0; i < TEST_RANGE; i++) {
 		if (is_inserted(i)) {
 			int doit = rand() % prob;
-			if (doit) {
+			if (doit == 0) {
 				struct my_data q;
 				q.x = i;
 				free(itree_remove(&root, &q, my_compare), M_ITREE_DATA);
 				remove_inserted(i);
+				num++;
 			}
 		}
 	}
+	printf("  removed %d\n", num);
 }
 
 

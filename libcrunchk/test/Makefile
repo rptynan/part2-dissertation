@@ -22,7 +22,8 @@ RERUN_TESTS_ON_CHANGE =  # Just blanking out from original test makefile
 
 default: checkall
 checkall: clear-stamps checkrun-my-test checkrun-index-tree-test \
-	checkrun-hello-heap checkrun-hello-array
+	checkrun-hello-heap checkrun-hello-array checkrun-hello-errno \
+	checkrun-hello-indirect
 clear-stamps:  # Don't know how to rm these properly
 	find . -name "*-stamp" | xargs rm -f
 
@@ -61,6 +62,10 @@ my-test/check-stamp: $(RERUN_TESTS_ON_CHANGE)
 checkrun-index-tree-test: index-tree-test/check-stamp
 index-tree-test/check-stamp: $(RERUN_TESTS_ON_CHANGE)
 	$(MAKE) cleanrun-index-tree-test >/dev/null 2>&1 && touch "$@"
+
+checkrun-hello-errno: hello-errno/check-stamp
+hello-errno/check-stamp: $(RERUN_TESTS_ON_CHANGE)
+	$(MAKE) cleanrun-hello-errno >/dev/null 2>&1 && touch "$@"
 
 
 ## All of our parameterised rules for each test case
