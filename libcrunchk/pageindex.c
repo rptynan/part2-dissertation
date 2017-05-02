@@ -28,11 +28,16 @@ unsigned long pageindex_distance(const void *a, const void *b) {
 static inline struct big_allocation* pageindex_lookup(const void *begin) {
 	PRINTD1("pageindex_lookup: %p", begin);
 	const struct big_allocation b = {.begin = (void *)begin};
-	struct itree_node *res = itree_find_closest_under(
+	struct itree_node *r = itree_find_closest_under(
 		pageindex_root, &b, pageindex_compare, pageindex_distance
 	);
-	if (res) return (struct big_allocation *) res->data;
-	return NULL;
+	struct big_allocation *res = (struct big_allocation *) r ? r->data : NULL;
+
+	if (!res || !(res->begin <= begin && begin <= res->end)) {
+		PRINTD("pageindex_lookup error: not found");
+		return NULL;
+	}
+	return res;
 }
 
 void pageindex_insert(
