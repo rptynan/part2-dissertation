@@ -6,6 +6,8 @@
 # Setup: be in /usr/obj/usr/src/sys/, with build going in CRUNCHED, and all the
 # .o files from a gcc build in CRUNCHED_gcc and similarly for crunchcc.
 
+export CRUNCHED=/usr/obj/usr/src/sys/CRUNCHED/
+
 # cplettersin <letters> <from gcc or crunchcc>
 function cplettersin() {
     for i in {$1}; do
@@ -68,7 +70,7 @@ function populatedir() {
 function populatefromfile(){
     while read line; do
         if [[ $line == \#* ]] || [[ $line == "" ]]; then
-			echo $line
+            echo $line
             continue;
         fi
         compiler=$(echo $line | cut -d ' ' -f 2)
@@ -89,8 +91,19 @@ function iscrunched(){
 
 # diroverview
 # Says if the file has been crunched or not in the src directory.
+# Some false positives
 function diroverview(){
-    for i in $(find CRUNCHED -depth 1 -name "*.o"); do
+    for i in $(find $CRUNCHED -depth 1 -name "*.o"); do
         echo "$i $(iscrunched $i)"
+    done | sort
+}
+
+# debugoverview
+# Says if files have KTR turned on or not
+# Some false positives
+function debugoverview() {
+    for i in $(find $CRUNCHED -depth 1 -name "*.o"); do
+		echo "$i $(if [[ $(readelf -s $i | grep ktr_tracepoint) ]]; \
+			then echo 1; else echo 0; fi)"
     done | sort
 }
