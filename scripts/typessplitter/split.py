@@ -27,10 +27,29 @@ def replace_sections(string):
     )
     return string.replace('.data.', '.meta.')
 
+# Any lines matching patterns in here gets removed
+def remove_patterns(lines):
+    subobj_pattern = re.compile("^.*subobj_names.*$")
+    uniqtype_pattern = re.compile("^.*static alloc record for object __uniqtype_.*$")
+
+    result = []
+    liter = iter(lines[:])
+    for l in liter :
+        if subobj_pattern.match(l):
+            continue
+        if uniqtype_pattern.match(l):
+            l = next(liter)
+            l = next(liter)
+            l = next(liter)
+            continue
+        result.append(l)
+    return result
+
+
 
 # args
 with open(sys.argv[1], 'r') as f:
-    lines = f.read().split('\n')
+    lines = remove_patterns(f.read().split('\n'))
 
 split_num = int(sys.argv[2])
 

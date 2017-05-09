@@ -464,6 +464,8 @@ liballocs_err_t extract_and_output_alloc_site_and_type(
 		/* ) { */
 		/* 	__liballocs_addrlist_add(&__liballocs_unrecognised_heap_alloc_sites, alloc_site); */
 		/* } */
+#undef NDEBUG // FIXME realloc wrapper needs a fix for not having the alloc
+			  // site if this is used
 #ifdef NDEBUG
 		// install it for future lookups
 		// FIXME: make this atomic using a union

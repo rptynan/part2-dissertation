@@ -47,7 +47,7 @@ extern struct static_allocsite_entry __attribute__((weak)) statics[];
 
 
 /* stolen from libkern, to avoid outside calls */
-static int strcmp(s1, s2)
+static int strcmp_private(s1, s2)
         register const char *s1, *s2;
 {
         while (*s1 == *s2++)
@@ -70,15 +70,16 @@ static void offset_all_statics ()
 	ptrdiff_t dot_data_offset = 0;
 	struct static_allocsite_entry *s = &statics[0];
 	do {
+		if (!s->name) continue;
 		/* These should be positive offsets as we're adding to stuff to the
 		 * object */
-		if (strcmp(s->name, "magic_static_func_symbol", 32) == 0) {
+		if (strcmp_private(s->name, "magic_static_func_symbol") == 0) {
 			dot_text_offset = (void *)&magic_static_func_symbol - s->entry.allocsite;
 		}
-		if (strcmp(s->name, "magic_static_var_symbol", 32) == 0) {
+		if (strcmp_private(s->name, "magic_static_var_symbol") == 0) {
 			dot_data_offset = (void *)&magic_static_var_symbol - s->entry.allocsite;
 		}
-	} while(s++ && s->name);
+	} while(s++ && (s->name || s->entry.allocsite || s->entry.uniqtype));
 
 	// apply offsets and insert into appropriate indices
 	s = &statics[0];
@@ -94,7 +95,7 @@ static void offset_all_statics ()
 
 		pageindex_insert(
 			s->entry.allocsite,
-			(s+1)->entry.allocsite, // should be ok to do as last static is void
+			(s+1)->entry.allocsite + offset, // should be ok to do as last static is void
 			&__static_allocator
 		);
 
@@ -104,7 +105,7 @@ static void offset_all_statics ()
 			s->entry.allocsite,
 			1
 		);
-	} while(s++ && s->name);
+	} while(s++ && (s->name || s->entry.allocsite || s->entry.uniqtype));
 }
 
 
@@ -134,11 +135,27 @@ static_addr_to_uniqtype(const void *static_addr, void **out_object_start) {
 	return ins->alloc_site;
 }
 
-
+/* extern struct tcphdr libcrunch_magic_test_tcphdr; // debug */
 static liballocs_err_t get_info(void * obj, struct big_allocation *maybe_bigalloc, 
 	struct uniqtype **out_type, void **out_base, 
 	unsigned long *out_size, const void **out_site)
 {
+	/* Debugging */
+	/* if (!obj) { */
+	/* 	PRINTD("static get_info debugging"); */
+	/* 	struct static_allocsite_entry *s = &statics[0]; */
+	/* 	do { */
+	/* 		if (!s->name) continue; */
+	/* 		if (strcmp_private(s->name, "libcrunch_magic_test_tcphdr") == 0) { */
+	/* 			ptrdiff_t offset = (s->entry.allocsite < &etext) */
+	/* 				? dot_text_offset : dot_data_offset; */
+	/* 			PRINTD1("found magic var, offset: %p", offset); */
+	/* 			/1* PRINTD1("var actual loc: %p", &libcrunch_magic_test_tcphdr); *1/ */
+	/* 			PRINTD1("var apparent loc: %p", s->entry.allocsite); */
+	/* 		} */
+	/* 	} while(s++ && (s->name || s->entry.allocsite || s->entry.uniqtype)); */
+	/* 	return NULL; */
+	/* } */
 	++__liballocs_hit_static_case;
 	void *object_start;
 	struct uniqtype *alloc_uniqtype = static_addr_to_uniqtype(obj, &object_start);
