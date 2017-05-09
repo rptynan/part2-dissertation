@@ -171,9 +171,8 @@ int __currently_allocating = 0; // TODO mutexes
  * during frees, so instead we buffer them all using a static buffer and
  * perform them during M_WAITOK mallocs */
 #define MALLOC_BUF_SIZE 100000
-unsigned long free_buffer_i = 0;
-void *free_buffer[MALLOC_BUF_SIZE];
 struct malloc_buffer_type {
+	_Bool is_malloc;  // true for malloc, false for free
 	void *addr;
 	void *caller;
 	unsigned long size;
@@ -181,6 +180,24 @@ struct malloc_buffer_type {
 unsigned long malloc_buffer_i = 0;
 struct malloc_buffer_type malloc_buffer[MALLOC_BUF_SIZE];
 
+void flush_malloc_buffer() {
+	for (int i = 0; i < malloc_buffer_i; i++) {
+		struct malloc_buffer_type *p = &malloc_buffer[i];
+		if (p->is_malloc) {
+			pageindex_insert(
+				p->addr,
+				p->addr + p->size,
+				&__generic_malloc_allocator
+			);
+			heapindex_insert(p->caller, p->addr, 0);
+		}
+		else {
+			pageindex_remove(p->addr);
+			heapindex_remove(p->addr);
+		}
+	}
+	malloc_buffer_i = 0;
+}
 
 /* The hook, __real_malloc has same signature */
 #include <libcrunchk/include/index_tree.h>
@@ -198,39 +215,21 @@ void *__wrap_malloc(unsigned long size, struct malloc_type *mtp, int flags)
 		void *caller = __builtin_return_address(1);
 		if (flags & M_WAITOK) {
 			PRINTD("malloc inserting to indices");
-			// TODO we're ignoring M_NOWAITs for now because itree can't do a
-			// malloc during them, but should add a buffer to do M_NOWAITs
-			// later
-			// TODO ensure thread-safety
+			flush_malloc_buffer();
+		/* 	// TODO we're ignoring M_NOWAITs for now because itree can't do a */
+		/* 	// malloc during them, but should add a buffer to do M_NOWAITs */
+		/* 	// later */
+		/* 	// TODO ensure thread-safety */
 			pageindex_insert(ret, ret + size, &__generic_malloc_allocator);
 			heapindex_insert(caller, ret, 0);
 
-			for (int i = 0; i < free_buffer_i; i++) {
-				// Might be unnecessary to buffer these as is_a, etc does
-				// lookup anyway...
-				pageindex_remove(free_buffer[i]);
-				heapindex_remove(free_buffer[i]);
-			}
-			free_buffer_i = 0;
-			for (int i = 0; i < malloc_buffer_i; i++) {
-				pageindex_insert(
-					malloc_buffer[i].addr,
-					malloc_buffer[i].addr + malloc_buffer[i].size,
-					&__generic_malloc_allocator
-				);
-				heapindex_insert(
-					malloc_buffer[i].caller,
-					malloc_buffer[i].addr,
-					0
-				);
-			}
-			malloc_buffer_i = 0;
 		}
 		else {
 			PRINTD("malloc buffering index insert");
 			if (malloc_buffer_i < MALLOC_BUF_SIZE - 1) {
-				malloc_buffer[malloc_buffer_i++].addr = ret;
-				malloc_buffer[malloc_buffer_i++].caller = caller;
+				malloc_buffer[malloc_buffer_i].is_malloc = 1;
+				malloc_buffer[malloc_buffer_i].addr = ret;
+				malloc_buffer[malloc_buffer_i].caller = caller;
 				malloc_buffer[malloc_buffer_i++].size = size;
 			}
 		}
@@ -244,5 +243,106 @@ void __wrap_free(void *addr, struct malloc_type *mtp)
 {
 	PRINTD1("free called, addr: %p", addr);
 	__real_free(addr, mtp);
-	if (free_buffer_i < MALLOC_BUF_SIZE - 1) free_buffer[free_buffer_i++] = addr;
+	if (malloc_buffer_i < MALLOC_BUF_SIZE - 1) {
+		malloc_buffer[malloc_buffer_i].is_malloc = 0;
+		malloc_buffer[malloc_buffer_i].addr = addr;
+	}
 }
+
+// HACK, wrapping this is causing crashes, no idea why, even when it just
+// passes on the arguments and returns the result, so gonna insert a hook in
+// realloc instead
+void *__wrap_realloc(
+	void *addr, unsigned long size, struct malloc_type *mtp, int flags, void *newaddr
+) {
+	/* return newaddr; */
+	PRINTD1("realloc called, addr: %u", size);
+
+	/* return __real_realloc(addr, size, mtp, flags); */
+	/* void *ret = __real_realloc(addr, size, mtp, flags); */
+	void *ret = newaddr;
+	if (ret) {
+		if (flags & M_WAITOK) {
+			flush_malloc_buffer();
+			// realloc changed the address and/or size, so we need to update
+			// ours but keep old alloc site! Not sure if this is correct,
+			// but...
+			struct insert *ins = heapindex_lookup(addr);
+			// remove old
+			pageindex_remove(addr);
+			heapindex_remove(addr);
+			// add new ins should be non null but just in case, limp onwards.
+			void *caller = ins ? ins->alloc_site : __builtin_return_address(1);
+			pageindex_insert(ret, ret + size, &__generic_malloc_allocator);
+			heapindex_insert(caller, ret, 0);
+		}
+		else {
+			if (malloc_buffer_i < MALLOC_BUF_SIZE - 2) {
+				struct insert *ins = heapindex_lookup(addr);
+				// free old
+				malloc_buffer[malloc_buffer_i].is_malloc = 0;
+				malloc_buffer[malloc_buffer_i].addr = addr;
+				// add new
+				void *caller = ins ? ins->alloc_site : __builtin_return_address(1);
+				malloc_buffer[malloc_buffer_i].is_malloc = 1;
+				malloc_buffer[malloc_buffer_i].addr = ret;
+				malloc_buffer[malloc_buffer_i].caller = caller;
+				malloc_buffer[malloc_buffer_i++].size = size;
+			}
+		}
+	}
+	return ret;
+}
+
+void *__wrap_reallocf(
+	void *addr, unsigned long size, struct malloc_type *mtp, int flags
+) {
+	PRINTD1("reallocf called, addr: %u", size);
+
+	void *ret = __real_reallocf(addr, size, mtp, flags);
+	/* return ret; */
+	if (ret) {
+		if (flags & M_WAITOK) {
+			// realloc changed the address and/or size, so we need to update ours
+			// but keep old alloc site! Not sure if this is correct, but...
+			// remove old
+			struct insert *ins = heapindex_lookup(addr);
+			pageindex_remove(addr);
+			heapindex_remove(addr);
+			// add new
+			// ins should be non null but just in case, limp onwards.
+			void *caller = ins ? ins->alloc_site : __builtin_return_address(1);
+			pageindex_insert(ret, ret + size, &__generic_malloc_allocator);
+			heapindex_insert(caller, ret, 0);
+		}
+		else {
+			if (malloc_buffer_i < MALLOC_BUF_SIZE - 2) {
+				struct insert *ins = heapindex_lookup(addr);
+				// free old
+				malloc_buffer[malloc_buffer_i].is_malloc = 0;
+				malloc_buffer[malloc_buffer_i].addr = addr;
+				// add new
+				void *caller = ins ? ins->alloc_site : __builtin_return_address(1);
+				malloc_buffer[malloc_buffer_i].is_malloc = 1;
+				malloc_buffer[malloc_buffer_i].addr = ret;
+				malloc_buffer[malloc_buffer_i].caller = caller;
+				malloc_buffer[malloc_buffer_i++].size = size;
+			}
+		}
+	}
+	else {
+		// realloc has freed addr, so we need to remove our entries
+		if (flags & M_WAITOK) {
+			pageindex_remove(addr);
+			heapindex_remove(addr);
+		}
+		else {
+			if (malloc_buffer_i < MALLOC_BUF_SIZE - 1) {
+				malloc_buffer[malloc_buffer_i].is_malloc = 0;
+				malloc_buffer[malloc_buffer_i].addr = addr;
+			}
+		}
+	}
+	return ret;
+}
+

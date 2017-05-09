@@ -11,7 +11,7 @@ TYPESSPLITTER = python2 $(LIBCRUNCHK_BASE)/../scripts/typessplitter/split.py
 LIBCRUNCH_OBJS = libcrunch.o liballocs.o pageindex.o generic_malloc.o static.o index_tree.o
 W_FLAGS = -Wall -Wno-format -std=gnu11
 DEBUG_FLAGS = -DDEBUG_CIL_INLINES=2 -DDEBUG_STUBS=2 -g
-WRAP_FLAGS ?= -Wl,-wrap,malloc,-wrap,free,-T,../ldscript
+WRAP_FLAGS ?= -Wl,-wrap,malloc,-wrap,free,-wrap,reallocf,-T,../ldscript
 
 THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 MAKE = gmake

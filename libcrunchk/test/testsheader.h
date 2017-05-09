@@ -12,6 +12,9 @@ void free(void *addr, struct malloc_type *type);
 void __real_free(void *addr, struct malloc_type *type) {
 	return free(addr, type);
 }
+void __real_reallocf(void *addr, unsigned long size, struct malloc_type *type, int flags) {
+	return reallocf(addr, size, type, flags);
+}
 #else
 #include <sys/malloc.h>
 void *malloc(unsigned long size, struct malloc_type *type, int flags);
