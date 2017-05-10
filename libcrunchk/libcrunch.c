@@ -6,6 +6,8 @@
   #include <sys/cdefs.h>
   #include <sys/param.h>
   #include <sys/systm.h>
+  // SYSINIT
+  #include <sys/kernel.h>
 #endif
 // sysctl
 #include <sys/types.h>
@@ -24,6 +26,13 @@ void __assert_fail(
 	PRINTD2("%s:%d", __function, __line);
 	return;
 }
+void __alloca_allocator_notify(void *new_userchunkaddr, unsigned long modified_size, 
+		unsigned long *frame_counter, const void *caller, 
+		const void *caller_sp, const void *caller_bp) { };
+void __liballocs_unindex_stack_objects_counted_by(unsigned long *thing, void *frame_addr) {};
+void __liballocs_alloca_caller_frame_cleanup(void *counter) {};
+
+
 
 
 /* Counters, macro will define the unsigned long to store the value and then
@@ -211,11 +220,10 @@ void __libcrunch_scan_lazy_typenames(void *blah)
 	PRINTD("__libcrunch_scan_lazy_typenames");
 }
 
-// FIXME TODO this most definitely should be properly sysinited, because
-// statics are dealt with in liballocs init.
-int __libcrunch_global_init(void)
+int __libcrunch_global_init(void *unused)
 {
 	PRINTD("__libcrunch_global_init");
+	printf("libcrunch initialising!");  // to output on boot screen
 
 	if (__libcrunch_is_initialized) return 0; // we are okay
 
@@ -257,22 +265,21 @@ int __libcrunch_global_init(void)
 	return 0;
 }
 
+#ifdef _KERNEL
+// This will initialise libcrunch late in boot process. All type check
+// functions should abort if called before this is initialised
+SYSINIT(
+	libcrunch_init, SI_SUB_LAST, SI_ORDER_ANY, __libcrunch_global_init, NULL
+);
+#else
+__attribute__((constructor)) static void userspace_init() {
+	__libcrunch_global_init(NULL);
+}
+#endif
+
 int __libcrunch_check_init(void)
 {
-	/* if (unlikely(! &__libcrunch_is_initialized)) */
-	/* { */
-	/* 	/1* This means that we're not linked with libcrunch. */ 
-	/* 	 * There's nothing we can do! *1/ */
-	/* 	return -1; */
-	/* } */
-	if (unlikely(!__libcrunch_is_initialized))
-	{
-		/* This means we haven't initialized.
-		 * Try that now (it won't try more than once). */
-		int ret = __libcrunch_global_init ();
-		return ret;
-	}
-	return 0;
+	return __libcrunch_is_initialized;
 }
 
 
@@ -286,7 +293,7 @@ int __is_a_internal(const void *obj, const void *arg)
 
 	/* We might not be initialized yet (recall that __libcrunch_global_init is 
 	 * not a constructor, because it's not safe to call super-early). */
-	__libcrunch_check_init();
+	if (!__libcrunch_check_init()) return 1;
 	
 	const struct uniqtype *test_uniqtype = (const struct uniqtype *) arg;
 	struct allocator *a = NULL;
