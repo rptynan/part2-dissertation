@@ -24,7 +24,8 @@ default: checkall
 checkall: clear-stamps checkrun-my-test checkrun-index-tree-test \
 	checkrun-hello-heap checkrun-hello-array checkrun-hello-errno \
 	checkrun-hello-indirect checkrun-hello-funptr checkrun-hello-sizeofness \
-	checkrun-hello-static1 # static1 because crunchcc is ignoring *static.c
+	checkrun-hello-static1 checkrun-fail-funptr
+	# renamed static -> static1 because crunchcc is ignoring *static.c
 	# Have ignored:
 	# hello-void (init check)
 	# hello-incomplete (uniqtype names not impl)
@@ -63,6 +64,20 @@ checkrun-%: %/check-stamp
 		    touch "$@" || \
 		(tail -n32 $$err; false)
 
+# Some cases are expected to fail, i.e. generate libcrunch "check failed" stats.
+checkrun-fail-%: fail-%/check-stamp
+	true # remembered pass of fail-$*
+fail-%/check-stamp: $(RERUN_TESTS_ON_CHANGE)
+	@echo "expected-fail case is fail-$*" && \
+	out=$$( echo -n "out is " 1>&2; mktemp | tee /dev/stderr ) && \
+	err=$$( echo -n "err is " 1>&2; mktemp | tee /dev/stderr ) && \
+	$(MAKE) cleanrun-fail-$* 1>$$out 2>$$err && \
+		. ./checks.sh && tail -n26 "$$err" | \
+		    match "       failed otherwise" '[1-9][0-9]*' >/dev/null && \
+		    touch "$@" || \
+		(tail -n26 $$err; false)
+
+# Some cases just need to run without error
 checkrun-my-test: my-test/check-stamp
 my-test/check-stamp: $(RERUN_TESTS_ON_CHANGE)
 	$(MAKE) cleanrun-my-test >/dev/null 2>&1 && touch "$@"

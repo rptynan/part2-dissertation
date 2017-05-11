@@ -759,10 +759,194 @@ int __check_args_internal(const void *obj, int nargs, ...)
 }
 
 /* is_a_internal but for function pointer casts */
-int __is_a_function_refining_internal(const void *obj, const void *r)
+int __is_a_function_refining_internal(const void *obj, const void *arg)
 {
 	PRINTD("__is_a_function_refining_internal");
-	return 1;
+	/* We might not be initialized yet (recall that __libcrunch_global_init is 
+	 * not a constructor, because it's not safe to call super-early). */
+	if (!__libcrunch_check_init()) return 1;
+	
+	const struct uniqtype *test_uniqtype = (const struct uniqtype *) arg;
+	struct allocator *a = NULL;
+	const void *alloc_start;
+	unsigned long alloc_size_bytes;
+	struct uniqtype *alloc_uniqtype = (struct uniqtype *)0;
+	const void *alloc_site;
+	signed target_offset_within_uniqtype;
+	
+	struct liballocs_err *err = __liballocs_get_alloc_info(obj, 
+		&a,
+		&alloc_start,
+		&alloc_size_bytes,
+		&alloc_uniqtype,
+		&alloc_site);
+	
+	if (__builtin_expect(err != NULL, 0))
+	{
+		return 1;
+	}
+	
+	/* If we're offset-zero, that's good... */
+	if (alloc_start == obj)
+	{
+		/* If we're an exact match, that's good.... */
+		if (alloc_uniqtype == arg)
+		{
+			++__libcrunch_succeeded;
+			return 1;
+		}
+		else
+		{
+			/* If we're not a function, that's bad. */
+			if (UNIQTYPE_IS_SUBPROGRAM_TYPE(alloc_uniqtype))
+			{
+				/* If our argument counts don't match, that's bad. */
+				if (alloc_uniqtype->un.subprogram.narg == test_uniqtype->un.subprogram.narg)
+				{
+					/* For each argument, we want to make sure that 
+					 * the "implicit" cast done on the argument, from
+					 * the cast-from type to the cast-to type, i.e. that 
+					 * the passed argument *is_a* received argument, i.e. that
+					 * the cast-to argument *is_a* cast-from argument. */
+					_Bool success = 1;
+					/* Recall: return type is in [0] and arguments are in 1..array_len. */
+					
+					/* Would the cast from the return value to the post-cast return value
+					 * always succeed? If so, this cast is okay. */
+					struct uniqtype *alloc_return_type = alloc_uniqtype->related[0].un.t.ptr;
+					struct uniqtype *cast_return_type = test_uniqtype->related[0].un.t.ptr;
+					
+					/* HACK: a little bit of C-specifity is creeping in here.
+					 * FIXME: adjust this to reflect sloppy generic-pointer-pointer matches! 
+					      (only if LIBCRUNCH_STRICT_GENERIC_POINTERS not set) */
+					/* HACK: referencing uniqtypes directly from libcrunch is problematic
+					 * for COMDAT / section group / uniqing reasons. Ideally we wouldn't
+					 * do this. To prevent non-uniquing, we need to avoid linking
+					 * uniqtypes into the preload .so. But we can't rely on any particular
+					 * uniqtypes being in the executable; and if they're in a library
+					 * won't let us bind to them from the preload library (whether the
+					 * library is linked at startup or later, as it happens).  One workaround:
+					 * use the _nonshared.a hack for -lcrunch_stubs too, so that all 
+					 * libcrunch-enabled executables necessarily have __uniqtype__void
+					 * and __uniqtype__signed_char in the executable.
+					 * ARGH, but we still can't bind to these from the preload lib.
+					 * (That's slightly surprising semantics, but it's what I observe.)
+					 * We have to use dynamic linking. */
+					#define would_always_succeed(from, to) \
+						( \
+							!UNIQTYPE_IS_POINTER_TYPE((to)) \
+						||  (UNIQTYPE_POINTEE_TYPE((to)) == pointer_to___uniqtype__void) \
+						||  (UNIQTYPE_POINTEE_TYPE((to)) == pointer_to___uniqtype__signed_char) \
+						||  (UNIQTYPE_IS_POINTER_TYPE((from)) && \
+							__liballocs_find_matching_subobject( \
+							/* target_offset_within_uniqtype */ 0, \
+							/* cur_obj_uniqtype */ UNIQTYPE_POINTEE_TYPE((from)), \
+							/* test_uniqtype */ UNIQTYPE_POINTEE_TYPE((to)), \
+							/* last_attempted_uniqtype */ NULL, \
+							/* last_uniqtype_offset */ NULL, \
+							/* p_cumulative_offset_searched */ NULL, \
+							/* p_cur_containing_uniqtype */ NULL, \
+							/* p_cur_contained_pos */ NULL)) \
+						)
+						
+					/* ARGH. Are these the right way round?  
+					 * The "implicit cast" is from the alloc'd return type to the 
+					 * cast-to return type. */
+					success &= would_always_succeed(alloc_return_type, cast_return_type);
+					
+					if (success) for (int i_rel = MIN(1, alloc_uniqtype->un.subprogram.nret);
+						i_rel < MIN(1, alloc_uniqtype->un.subprogram.nret) + 
+								alloc_uniqtype->un.subprogram.narg; ++i_rel)
+					{
+						/* ARGH. Are these the right way round?  
+						 * The "implicit cast" is from the cast-to arg type to the 
+						 * alloc'd arg type. */
+						success &= would_always_succeed(
+							test_uniqtype->related[i_rel].un.t.ptr,
+							alloc_uniqtype->related[i_rel].un.t.ptr
+						);
+
+						if (!success) break;
+					}
+					
+					if (success)
+					{
+						++__libcrunch_succeeded;
+						return 1;
+					}
+				}
+			}
+		}
+	}
+	
+	// if we got here, the check failed
+	if (__currently_allocating || __currently_freeing)
+	{
+		++__libcrunch_failed_in_alloc;
+		// suppress warning
+	}
+	else
+	{
+		++__libcrunch_failed;
+		if (!is_suppressed(UNIQTYPE_NAME(test_uniqtype), __builtin_return_address(0), alloc_uniqtype ? UNIQTYPE_NAME(alloc_uniqtype) : NULL))
+		{
+			if (should_report_failure_at(__builtin_return_address(0)))
+			{
+				if (last_failed_site == __builtin_return_address(0)
+						&& last_failed_deepest_subobject_type == alloc_uniqtype)
+				{
+					++repeat_suppression_count;
+				}
+				else
+				{
+					if (repeat_suppression_count > 0)
+					{
+						/* debug_printf(0, "Suppressed %ld further occurrences of the previous error\n", */ 
+						/* 		repeat_suppression_count); */
+						PRINTD1(
+							"Suppressed %ld further occurrences of the previous error",
+							repeat_suppression_count
+						);
+					}
+
+					/* debug_printf(0, "Failed check __is_a_function_refining(%p, %p a.k.a. \"%s\") at %p (%s), " */
+					/* 		"found an allocation of a %s%s%s " */
+					/* 		"originating at %p\n", */ 
+					/* 	obj, test_uniqtype, UNIQTYPE_NAME(test_uniqtype), */
+					/* 	__builtin_return_address(0), format_symbolic_address(__builtin_return_address(0)), */ 
+					/* 	a ? a->name : "(no allocator)", */
+					/* 	(ALLOC_IS_DYNAMICALLY_SIZED(alloc_start, alloc_site) && alloc_uniqtype && alloc_size_bytes > alloc_uniqtype->pos_maxoff) ? " allocation of " : " ", */ 
+					/* 	NAME_FOR_UNIQTYPE(alloc_uniqtype), */
+					/* 	alloc_site); */
+					PRINTD2("Failed check __is_a_function_refining(%p, %p)", obj, test_uniqtype);
+					PRINTD1("a.k.a. \"%s\"", UNIQTYPE_NAME(test_uniqtype));
+					PRINTD2(
+						"at %p offset (%s) ",
+						__builtin_return_address(0),
+						format_symbolic_address(__builtin_return_address(0))
+					);
+					PRINTD2(
+						"found an allocation of a %s%s",
+						a ? a->name : "(no allocator)",
+						(ALLOC_IS_DYNAMICALLY_SIZED(alloc_start, alloc_site) && alloc_uniqtype && alloc_size_bytes > alloc_uniqtype->pos_maxoff) ? " allocation of " : " "
+					);
+					PRINTD1(
+						"%s",
+						NAME_FOR_UNIQTYPE(alloc_uniqtype)
+					);
+					PRINTD1(
+						"originating at %p",
+						alloc_site
+					);
+
+					last_failed_site = __builtin_return_address(0);
+					last_failed_deepest_subobject_type = alloc_uniqtype;
+					repeat_suppression_count = 0;
+				}
+			}
+		}
+	}
+	return 1; // HACK: so that the program will continue
 }
 
 int __is_a_pointer_of_degree_internal(const void *obj, int d)
