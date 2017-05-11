@@ -1,3 +1,4 @@
+#include <libcrunchk/include/libcrunch.h>
 #include <libcrunchk/include/liballocs.h>
 #include <libcrunchk/include/allocmeta.h>
 #include <libcrunchk/include/pageindex.h>
@@ -44,7 +45,7 @@ void __liballocs_alloca_caller_frame_cleanup(void *counter) {};
   #define LIBCRUNCH_COUNTER(name) \
 	unsigned long int __libcrunch_ ## name = 0; \
 	SYSCTL_ULONG( \
-		_debug_libcrunch, OID_AUTO, name, CTLFLAG_RD, \
+		_debug_libcrunch, OID_AUTO, name, CTLFLAG_RW, \
 		&__libcrunch_ ## name, \
 		sizeof(__libcrunch_ ## name), \
 		"__libcrunch_" #name \
@@ -220,10 +221,16 @@ void __libcrunch_scan_lazy_typenames(void *blah)
 	PRINTD("__libcrunch_scan_lazy_typenames");
 }
 
+struct rwlock pageindex_rwlock;
+struct rwlock heapindex_rwlock;
+struct rwlock typesindex_rwlock;
 int __libcrunch_global_init(void *unused)
 {
 	PRINTD("__libcrunch_global_init");
-	printf("libcrunch initialising!");  // to output on boot screen
+	// to output on boot screen
+	printf("====================================================\n");
+	printf("======         libcrunch initialising           ====\n");
+	printf("====================================================\n");
 
 	if (__libcrunch_is_initialized) return 0; // we are okay
 

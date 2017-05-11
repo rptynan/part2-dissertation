@@ -28,15 +28,18 @@ unsigned long pageindex_distance(const void *a, const void *b) {
 static inline struct big_allocation* pageindex_lookup(const void *begin) {
 	PRINTD1("pageindex_lookup: %p", begin);
 	const struct big_allocation b = {.begin = (void *)begin};
+	PAGEINDEX_RLOCK;
 	struct itree_node *r = itree_find_closest_under(
 		pageindex_root, &b, pageindex_compare, pageindex_distance
 	);
 	struct big_allocation *res = (struct big_allocation *) r ? r->data : NULL;
 
 	if (!res || !(res->begin <= begin && begin <= res->end)) {
+		PAGEINDEX_UNLOCK;
 		PRINTD("pageindex_lookup error: not found");
 		return NULL;
 	}
+	PAGEINDEX_UNLOCK;
 	return res;
 }
 
@@ -51,15 +54,19 @@ void pageindex_insert(
 	b->begin = begin;
 	b->end = end;
 	b->allocated_by = allocated_by;
+	PAGEINDEX_WLOCK;
 	itree_insert(&pageindex_root, (void *)b, pageindex_compare);
+	PAGEINDEX_UNLOCK;
 }
 
 void pageindex_remove(void *begin) {
 	PRINTD1("pageindex_remove: %p", begin);
 	struct big_allocation b = {.begin = begin};
+	PAGEINDEX_WLOCK;
 	void *free_me = itree_remove(
 		&pageindex_root, (void *)&b, pageindex_compare
 	);
+	PAGEINDEX_UNLOCK;
 	if (free_me) __real_free(free_me, M_TEMP);
 }
 

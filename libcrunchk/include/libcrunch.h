@@ -3,6 +3,9 @@
 
 #include <sys/types.h>
 #include <sys/malloc.h>
+#include <sys/param.h>
+#include <sys/lock.h>
+#include <sys/rwlock.h>
 
 #ifndef NULL
 #define NULL 0
@@ -51,4 +54,47 @@ void *__real_malloc(unsigned long size, struct malloc_type *type, int flags);
 #define likely(cond)   (__builtin_expect( (cond), 1 ))
 #endif
 
+/* All the locks */
+#ifdef _KERNEL
+extern struct rwlock pageindex_rwlock;
+#define PAGEINDEX_RLOCK \
+	if (!rw_initialized(&pageindex_rwlock)) \
+		rw_init(&pageindex_rwlock, "pageindex_lock"); \
+	rw_rlock(&pageindex_rwlock)
+#define PAGEINDEX_WLOCK \
+	if (!rw_initialized(&pageindex_rwlock)) \
+		rw_init(&pageindex_rwlock, "pageindex_lock"); \
+	rw_wlock(&pageindex_rwlock)
+#define PAGEINDEX_UNLOCK rw_unlock(&pageindex_rwlock)
+#else
+#define PAGEINDEX_RLOCK
+#define PAGEINDEX_WLOCK
+#define PAGEINDEX_UNLOCK
+#endif
+extern struct rwlock heapindex_rwlock;
+/* #define HEAPINDEX_RLOCK \ */
+/* 	if (!rw_initialized(&heapindex_rwlock)) \ */
+/* 		rw_init(&heapindex_rwlock, "heapindex_lock"); \ */
+/* 	rw_rlock(&heapindex_rwlock) */
+/* #define HEAPINDEX_WLOCK \ */
+/* 	if (!rw_initialized(&heapindex_rwlock)) \ */
+/* 		rw_init(&heapindex_rwlock, "heapindex_lock"); \ */
+/* 	rw_wlock(&heapindex_rwlock) */
+/* #define HEAPINDEX_UNLOCK rw_unlock(&heapindex_rwlock) */
+#define HEAPINDEX_RLOCK
+#define HEAPINDEX_WLOCK
+#define HEAPINDEX_UNLOCK
+extern struct rwlock typesindex_rwlock;
+/* #define TYPESINDEX_RLOCK \ */
+/* 	if (!rw_initialized(&typesindex_rwlock)) \ */
+/* 		rw_init(&typesindex_rwlock, "typesindex_lock"); \ */
+/* 	rw_rlock(&typesindex_rwlock) */
+/* #define TYPESINDEX_WLOCK \ */
+/* 	if (!rw_initialized(&typesindex_rwlock)) \ */
+/* 		rw_init(&typesindex_rwlock, "typesindex_lock"); \ */
+/* 	rw_wlock(&typesindex_rwlock) */
+/* #define TYPESINDEX_UNLOCK rw_unlock(&typesindex_rwlock) */
+#define TYPESINDEX_RLOCK
+#define TYPESINDEX_WLOCK
+#define TYPESINDEX_UNLOCK
 #endif /* LIBCRUNCH_H */

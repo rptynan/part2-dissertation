@@ -34,9 +34,12 @@ unsigned long heapindex_distance(const void *a, const void *b) {
 
 struct insert *heapindex_lookup(const void *addr) {
 	const struct insert ins = {.addr = (void *)addr};
+	HEAPINDEX_RLOCK;
 	struct itree_node *res = itree_find_closest_under(
 		heapindex_root, &ins, heapindex_compare, heapindex_distance
 	);
+	HEAPINDEX_UNLOCK;
+	// What if res->data is freed here?
 	if (res) return (struct insert *) res->data;
 	return NULL;
 }
@@ -51,14 +54,18 @@ void heapindex_insert(
 	ins->alloc_site_flag = alloc_site_is_actually_uniqtype;
 	ins->alloc_site = (unsigned long) alloc_site;
 	ins->addr = addr;
+	HEAPINDEX_WLOCK;
 	itree_insert(&heapindex_root, (void *)ins, heapindex_compare);
+	HEAPINDEX_UNLOCK;
 }
 
 void heapindex_remove(void *addr) {
 	struct insert ins = {.addr = addr};
+	HEAPINDEX_WLOCK;
 	void *free_me = itree_remove(
 		&heapindex_root, (void *)&ins, heapindex_compare
 	);
+	HEAPINDEX_UNLOCK;
 	if (free_me) __real_free(free_me, M_TEMP);
 }
 

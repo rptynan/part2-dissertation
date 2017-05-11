@@ -71,6 +71,7 @@ static void offset_all_statics ()
 	struct static_allocsite_entry *s = &statics[0];
 	do {
 		if (!s->name) continue;
+		if (dot_text_offset && dot_data_offset) break;
 		/* These should be positive offsets as we're adding to stuff to the
 		 * object */
 		if (strcmp_private(s->name, "magic_static_func_symbol") == 0) {

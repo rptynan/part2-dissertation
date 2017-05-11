@@ -33,7 +33,7 @@ struct uniqtype *pointer_to___uniqtype__intptr_t;
   #define LIBALLOCS_COUNTER(name) \
 	unsigned long int __liballocs_ ## name = 0; \
 	SYSCTL_ULONG( \
-		_debug_liballocs, OID_AUTO, name, CTLFLAG_RD, \
+		_debug_liballocs, OID_AUTO, name, CTLFLAG_RW, \
 		&__liballocs_ ## name, \
 		sizeof(__liballocs_ ## name), \
 		"__liballocs_" #name \
@@ -394,7 +394,9 @@ void __liballocs_notify_unset_type(
 	);
 	node->site = alloc_site;
 	node->type = test_uniqtype;
+	TYPESINDEX_WLOCK;
 	itree_insert(&uniqtype_index, node, uniqtype_index_compare);
+	TYPESINDEX_UNLOCK;
 }
 
 inline
@@ -403,9 +405,11 @@ allocsite_to_uniqtype(const void *allocsite)
 {
 	PRINTD1("allocsite_to_uniqtype: %p", allocsite);
 	const struct uniqtype_index_node to_find = {.site = allocsite};
+	TYPESINDEX_RLOCK;
 	const struct itree_node *res = itree_find(
 		uniqtype_index, &to_find, uniqtype_index_compare
 	);
+	TYPESINDEX_UNLOCK;
 
 	/* Logic: if we've set this to null before, then a node will be present
 	 * with null data. Otherwise pass back our magic uniqtype so libcrunch
