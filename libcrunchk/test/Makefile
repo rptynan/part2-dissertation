@@ -25,7 +25,8 @@ checkall: clear-stamps checkrun-my-test checkrun-index-tree-test \
 	checkrun-hello-heap checkrun-hello-array checkrun-hello-errno \
 	checkrun-hello-indirect checkrun-hello-funptr checkrun-hello-sizeofness \
 	checkrun-hello-static1 checkrun-fail-funptr \
-	checkrun-fail-voidptrptr-invalid
+	checkrun-fail-voidptrptr-invalid checkrun-fail-va_arg \
+	checkrun-fail-voidptrptr-strict checkrun-voidptrptr
 	# renamed static -> static1 because crunchcc is ignoring *static.c
 	# Have ignored:
 	# hello-void (init check)

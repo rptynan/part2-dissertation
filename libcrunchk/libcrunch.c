@@ -1296,6 +1296,7 @@ int __is_a_function_refining_internal(const void *obj, const void *arg)
 int __is_a_pointer_of_degree_internal(const void *obj, int d)
 {
 	PRINTD("__is_a_pointer_of_degree_internal");
+	// TODO
 	return 1;
 }
 
