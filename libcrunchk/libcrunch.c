@@ -674,9 +674,11 @@ int __loosely_like_a_internal(const void *obj, const void *r)
 int __named_a_internal(const void *obj, const void *r)
 {
 	PRINTD("__named_a_internal");
+	/* This relies on getting uniqtype names which needs
+	 * __liballocs_uniqtype_symbol_name, which is not implemented, so pass.
+	*/
 	return 1;
 }
-
 
 /* Checking function arguments' types? */
 int __check_args_internal(const void *obj, int nargs, ...)

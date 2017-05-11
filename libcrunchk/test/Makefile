@@ -23,7 +23,15 @@ RERUN_TESTS_ON_CHANGE =  # Just blanking out from original test makefile
 default: checkall
 checkall: clear-stamps checkrun-my-test checkrun-index-tree-test \
 	checkrun-hello-heap checkrun-hello-array checkrun-hello-errno \
-	checkrun-hello-indirect checkrun-hello-funptr
+	checkrun-hello-indirect checkrun-hello-funptr checkrun-hello-sizeofness \
+	checkrun-hello-static1 # static1 because crunchcc is ignoring *static.c
+	# Have ignored:
+	# hello-void (init check)
+	# hello-incomplete (uniqtype names not impl)
+	# hello-stackactual (stack)
+	# hello-stack (stack)
+	# hello-qualified-char (init check)
+	# hello-stubgen (weird internal symbols wrapper thing)
 clear-stamps:  # Don't know how to rm these properly
 	find . -name "*-stamp" | xargs rm -f
 
