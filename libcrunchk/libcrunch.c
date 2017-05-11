@@ -13,6 +13,12 @@
 // sysctl
 #include <sys/types.h>
 #include <sys/sysctl.h>
+// variadic
+#include <x86/stdarg.h>
+// Need this to call is_aU() etc
+#include </usr/local/src/libcrunch/include/libcrunch_cil_inlines.h>
+#define unlikely(cond) (__builtin_expect( (cond), 0 ))
+#define likely(cond)   (__builtin_expect( (cond), 1 ))
 
 
 /* This needs to be somewhere, so might as well go here */
@@ -132,47 +138,13 @@ static unsigned long repeat_suppression_count;
 static const void *last_failed_site;
 static const struct uniqtype *last_failed_deepest_subobject_type;
 
-/* tentative cache entry redesign to integrate bounds and types:
- *
- * - lower
- * - upper     (one-past)
- * - t         (may be null, i.e. bounds only)
- * - sz        (size of t)
- * - period    (need not be same as period, i.e. if T is int, alloc is array of stat, say)
- *                 ** ptr arithmetic is only valid if sz == period
- *                 ** entries with sz != period are still useful for checking types 
- * - results   (__is_a, __like_a, __locally_like_a, __is_function_refining, ... others?)
- */
-struct __libcrunch_cache_entry_s
-{
-	const void *obj_base;
-	const void *obj_limit;
-	struct uniqtype *uniqtype;
-	unsigned period;
-	unsigned short result;
-	unsigned char prev_mru;
-	unsigned char next_mru;
-	/* TODO: do inline uniqtype cache word check? */
-} __attribute__((aligned(64)));
-#define LIBCRUNCH_MAX_IS_A_CACHE_SIZE 8
-struct __libcrunch_cache
-{
-	unsigned int validity; /* does *not* include the null entry */
-	const unsigned short size_plus_one; /* i.e. including the null entry */
-	unsigned short next_victim;
-	unsigned char head_mru;
-	unsigned char tail_mru;
-	/* We use index 0 to mean "unused" / "null". */
-	struct __libcrunch_cache_entry_s entries[1 + LIBCRUNCH_MAX_IS_A_CACHE_SIZE];
-};
-
 
 _Bool __libcrunch_is_initialized = 0;
 extern _Bool our_init_flag __attribute__(
 	(visibility("hidden"), alias("__libcrunch_is_initialized"))
 ); // necessary?
 
-struct __libcrunch_cache __libcrunch_is_a_cache; // all zeroes
+/* struct __libcrunch_cache __libcrunch_is_a_cache; // all zeroes */
 
 /* Only run when userspace testing */
 #ifndef _KERNEL
@@ -224,9 +196,9 @@ void __libcrunch_scan_lazy_typenames(void *blah)
 struct rwlock pageindex_rwlock;
 struct rwlock heapindex_rwlock;
 struct rwlock typesindex_rwlock;
-int __libcrunch_global_init(void *unused)
+int __libcrunch_global_sysinit(void *unused)
 {
-	PRINTD("__libcrunch_global_init");
+	PRINTD("__libcrunch_global_sysinit");
 	// to output on boot screen
 	printf("====================================================\n");
 	printf("======         libcrunch initialising           ====\n");
@@ -276,11 +248,11 @@ int __libcrunch_global_init(void *unused)
 // This will initialise libcrunch late in boot process. All type check
 // functions should abort if called before this is initialised
 SYSINIT(
-	libcrunch_init, SI_SUB_LAST, SI_ORDER_ANY, __libcrunch_global_init, NULL
+	libcrunch_init, SI_SUB_LAST, SI_ORDER_ANY, __libcrunch_global_sysinit, NULL
 );
 #else
 __attribute__((constructor)) static void userspace_init() {
-	__libcrunch_global_init(NULL);
+	__libcrunch_global_sysinit(NULL);
 }
 #endif
 
@@ -710,6 +682,77 @@ int __named_a_internal(const void *obj, const void *r)
 int __check_args_internal(const void *obj, int nargs, ...)
 {
 	PRINTD("__check_args_internal");
+	if (!__libcrunch_check_init()) return 1;
+
+	struct allocator *a;
+	const void *alloc_start;
+	unsigned long alloc_size_bytes;
+	struct uniqtype *alloc_uniqtype = (struct uniqtype *)0;
+	const void *alloc_site;
+	signed target_offset_within_uniqtype;
+
+	struct uniqtype *fun_uniqtype = NULL;
+	
+	struct liballocs_err *err = __liballocs_get_alloc_info(obj, 
+		&a,
+		&alloc_start,
+		&alloc_size_bytes,
+		&fun_uniqtype,
+		&alloc_site);
+	
+	if (err != NULL) return 1;
+	
+	assert(fun_uniqtype);
+	assert(alloc_start == obj);
+	assert(UNIQTYPE_IS_SUBPROGRAM_TYPE(fun_uniqtype));
+	
+	/* Walk the arguments that the function expects. Simultaneously, 
+	 * walk our arguments. */
+	va_list ap;
+	va_start(ap, nargs);
+	
+	// FIXME: this function screws with the __libcrunch_begun count somehow
+	// -- try hello-funptr
+	
+	_Bool success = 1;
+	int i;
+	for (i = 0; i < nargs && i < fun_uniqtype->un.subprogram.narg; ++i)
+	{
+		void *argval = va_arg(ap, void*);
+		/* related[0] is the return type */
+		struct uniqtype *expected_arg = fun_uniqtype->related[i+MIN(1,fun_uniqtype->un.subprogram.nret)].un.t.ptr;
+		/* We only check casts that are to pointer targets types.
+		 * How to test this? */
+		if (UNIQTYPE_IS_POINTER_TYPE(expected_arg))
+		{
+			struct uniqtype *expected_arg_pointee_type = UNIQTYPE_POINTEE_TYPE(expected_arg);
+			success &= __is_aU(argval, expected_arg_pointee_type);
+		}
+		if (!success) break;
+	}
+	if (i == nargs && i < fun_uniqtype->un.subprogram.narg)
+	{
+		/* This means we exhausted nargs before we got to the end of the array.
+		 * In other words, the function takes more arguments than we were passed
+		 * for checking, i.e. more arguments than the call site passes. 
+		 * Not good! */
+		success = 0;
+	}
+	if (i < nargs && i == fun_uniqtype->un.subprogram.narg)
+	{
+		/* This means we were passed more args than the uniqtype told us about. 
+		 * FIXME: check for its varargs-ness. If it's varargs, we're allowed to
+		 * pass more. For now, fail. */
+		success = 0;
+	}
+	
+	va_end(ap);
+	
+	/* NOTE that __check_args is not just one "test"; it's many. 
+	 * So we don't maintain separate counts here; our use of __is_aU above
+	 * will create many counts. */
+	
+	return success ? 0 : i; // 0 means success here
 	return 1;
 }
 
