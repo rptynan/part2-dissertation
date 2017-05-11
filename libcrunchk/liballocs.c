@@ -153,6 +153,126 @@ extern inline struct liballocs_err *__liballocs_get_alloc_info(
 	);
 }
 
+/* inline int */ 
+int
+__liballocs_walk_subobjects_spanning_rec(
+	signed accum_offset, unsigned accum_depth,
+	const signed target_offset_within_u,
+	struct uniqtype *u, 
+	int (*cb)(struct uniqtype *spans, signed span_start_offset, unsigned depth, 
+		struct uniqtype *containing, struct uniqtype_rel_info *contained_pos, 
+		signed containing_span_start_offset, void *arg),
+	void *arg
+	)
+{
+	signed ret = 0;
+	/* Calculate the offset to descend to, if any. This is different for 
+	 * structs versus arrays. */
+	if (UNIQTYPE_IS_ARRAY_TYPE(u))
+	{
+		struct uniqtype_rel_info *element_contained_in_u = &u->related[0];
+		struct uniqtype *element_uniqtype = element_contained_in_u->un.t.ptr;
+		signed div = target_offset_within_u / element_uniqtype->pos_maxoff;
+		signed mod = target_offset_within_u % element_uniqtype->pos_maxoff;
+		if (element_uniqtype->pos_maxoff != 0 && UNIQTYPE_ARRAY_LENGTH(u) > div)
+		{
+			signed skip_sz = div * element_uniqtype->pos_maxoff;
+			__liballocs_private_assert(target_offset_within_u < u->pos_maxoff,
+				"offset not within subobject", __FILE__, __LINE__, __func__);
+			int ret = cb(element_uniqtype, accum_offset + skip_sz, accum_depth + 1u, 
+				u, element_contained_in_u, accum_offset, arg);
+			if (ret) return ret;
+			// tail-recurse
+			else return __liballocs_walk_subobjects_spanning_rec(
+				accum_offset + (div * element_uniqtype->pos_maxoff), accum_depth + 1u,
+				mod, element_uniqtype, cb, arg);
+		} 
+		else // element's pos_maxoff == 0 || num_contained <= target_offset / element's pos_maxoff 
+		{}
+	}
+	else // struct/union case
+	{
+		signed num_contained = UNIQTYPE_COMPOSITE_MEMBER_COUNT(u);
+		int lower_ind = 0;
+		int upper_ind = num_contained;
+		while (lower_ind + 1 < upper_ind) // difference of >= 2
+		{
+			/* Bisect the interval */
+			int bisect_ind = (upper_ind + lower_ind) / 2;
+			__liballocs_private_assert(bisect_ind > lower_ind, "progress", __FILE__, __LINE__, __func__);
+			if (u->related[bisect_ind].un.memb.off > target_offset_within_u)
+			{
+				/* Our solution lies in the lower half of the interval */
+				upper_ind = bisect_ind;
+			} else lower_ind = bisect_ind;
+		}
+
+		if (lower_ind + 1 == upper_ind)
+		{
+			/* We found one offset; we may still have overshot, in the case of a 
+			 * stack frame where offset zero might not be used. */
+			if (u->related[lower_ind].un.memb.off > target_offset_within_u)
+			{
+				return 0; // FIXME: cb not called; what should our return value be then?
+			}
+
+			/* ... but we might not have found the *lowest* index, in the 
+			 * case of a union. Scan backwards so that we have the lowest. 
+			 * FIXME: need to account for the element size? Or here are we
+			 * ignoring padding anyway? */
+			signed offset = u->related[lower_ind].un.memb.off;
+			for (;
+					lower_ind > 0 && u->related[lower_ind-1].un.memb.off == offset;
+					--lower_ind);
+			// now we have the lowest lower_ind
+			// scan forwards!
+			for (int i_ind = lower_ind; i_ind < UNIQTYPE_COMPOSITE_MEMBER_COUNT(u)
+					&& u->related[i_ind].un.memb.off == offset;
+					++i_ind)
+			{
+				if (target_offset_within_u < u->pos_maxoff)
+				{
+					int ret = cb(u->related[i_ind].un.memb.ptr, accum_offset + offset,
+							accum_depth + 1u, u, &u->related[i_ind], accum_offset, arg);
+					if (ret) return ret;
+					else
+					{
+						ret = __liballocs_walk_subobjects_spanning_rec(
+							accum_offset + offset, accum_depth + 1u,
+							target_offset_within_u - offset, u->related[i_ind].un.memb.ptr, cb, arg);
+						if (ret) return ret;
+					}
+				}
+			}
+		}
+		else /* lower_ind >= upper_ind */
+		{
+			// this should mean num_contained == 0
+			__liballocs_private_assert(num_contained == 0,
+				"no contained objects", __FILE__, __LINE__, __func__);
+		}
+	}
+	
+	return ret;
+}
+
+/* extern inline int */
+int
+/* __attribute__((always_inline,gnu_inline)) */
+__liballocs_walk_subobjects_spanning(
+	const signed target_offset_within_u,
+	struct uniqtype *u, 
+	int (*cb)(struct uniqtype *spans, signed span_start_offset, unsigned depth,
+		struct uniqtype *containing, struct uniqtype_rel_info *contained_pos, 
+		signed containing_span_start_offset, void *arg),
+	void *arg
+	)
+{
+	return __liballocs_walk_subobjects_spanning_rec(
+		/* accum_offset */ 0, /* accum_depth */ 0, 
+		target_offset_within_u, u, cb, arg);
+}
+
 extern inline _Bool __liballocs_find_matching_subobject(
 	signed target_offset_within_uniqtype,
 	struct uniqtype *cur_obj_uniqtype,

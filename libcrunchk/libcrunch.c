@@ -40,8 +40,6 @@ void __liballocs_unindex_stack_objects_counted_by(unsigned long *thing, void *fr
 void __liballocs_alloca_caller_frame_cleanup(void *counter) {};
 
 
-
-
 /* Counters, macro will define the unsigned long to store the value and then
  * define a sysctl MIB under the debug.libcrunch parent node */
 #ifdef _KERNEL
@@ -260,6 +258,120 @@ int __libcrunch_check_init(void)
 {
 	return __libcrunch_is_initialized;
 }
+
+
+/* Helpers */
+
+/* This helper is short-circuiting: it doesn't tell you the precise degree 
+ * of the pointer, only whether it's at least d. */
+static _Bool pointer_has_degree(struct uniqtype *t, int d)
+{
+	while (d > 0)
+	{
+		if (!UNIQTYPE_IS_POINTER_TYPE(t)) return 0;
+		t = UNIQTYPE_POINTEE_TYPE(t);
+		assert(t);
+		--d;
+	}
+	return 1;
+}
+
+static _Bool pointer_degree_and_ultimate_pointee_type(struct uniqtype *t, int *out_d, 
+		struct uniqtype **out_ultimate_pointee_type)
+{
+	int d = 0;
+	while (UNIQTYPE_IS_POINTER_TYPE(t))
+	{
+		++d;
+		t = UNIQTYPE_POINTEE_TYPE(t);
+	}
+	*out_d = d;
+	*out_ultimate_pointee_type = t;
+	return 1;
+}
+
+static _Bool is_generic_ultimate_pointee(struct uniqtype *ultimate_pointee_type)
+{
+	return ultimate_pointee_type == pointer_to___uniqtype__void 
+		|| ultimate_pointee_type == pointer_to___uniqtype__signed_char
+		|| ultimate_pointee_type == pointer_to___uniqtype__unsigned_char;
+}
+
+static _Bool holds_pointer_of_degree(struct uniqtype *cur_obj_uniqtype, int d, signed target_offset)
+{
+	struct uniqtype *cur_containing_uniqtype = NULL;
+	struct uniqtype_rel_info *cur_contained_pos = NULL;
+	signed target_offset_within_uniqtype = target_offset;
+
+	/* Descend the subobject hierarchy until we can't go any further (since pointers
+	 * are atomic. */
+	_Bool success = 1;
+	while (success)
+	{
+		success = __liballocs_first_subobject_spanning(
+			&target_offset_within_uniqtype, &cur_obj_uniqtype, &cur_containing_uniqtype,
+			&cur_contained_pos);
+	}
+
+	if (target_offset_within_uniqtype == 0 && UNIQTYPE_IS_POINTER_TYPE(cur_obj_uniqtype))
+	{
+		_Bool depth_okay = pointer_has_degree(cur_obj_uniqtype, d);
+		if (depth_okay)
+		{
+			return 1;
+		} else return 0;
+	}
+	
+	return 0;
+}
+
+static int pointer_degree(struct uniqtype *t)
+{
+	_Bool success;
+	int d;
+	struct uniqtype *dontcare;
+	success = pointer_degree_and_ultimate_pointee_type(t, &d, &dontcare);
+	return success ? d : -1;
+}
+
+static int is_generic_pointer_type_of_degree_at_least(struct uniqtype *t, int must_have_d)
+{
+	_Bool success;
+	int d;
+	struct uniqtype *ultimate;
+	success = pointer_degree_and_ultimate_pointee_type(t, &d, &ultimate);
+	if (success && d >= must_have_d && is_generic_ultimate_pointee(ultimate)) return d;
+	else return 0;
+}
+
+static _Bool is_generic_pointer_type(struct uniqtype *t)
+{
+	return is_generic_pointer_type_of_degree_at_least(t, 1);
+}
+
+static void
+reinstate_looseness_if_necessary(
+    const void *alloc_start, const void *alloc_site,
+    struct uniqtype *alloc_uniqtype
+)
+{
+	/* Unlike other checks, we want to preserve looseness of the target block's 
+	 * type, if it's a pointer type. So set the loose flag if necessary. */
+	if (ALLOC_IS_DYNAMICALLY_SIZED(alloc_start, alloc_site) 
+			&& alloc_site != NULL
+			&& UNIQTYPE_IS_POINTER_TYPE(alloc_uniqtype))
+	{
+		struct insert *ins = __liballocs_get_insert(alloc_start);
+		//	(void*) alloc_start, malloc_usable_size((void*) alloc_start)
+		//);
+		if (ins->alloc_site_flag)
+		{
+			assert(0 == ins->alloc_site & 0x1ul);
+			ins->alloc_site |= 0x1ul;
+		}
+	}
+}
+
 
 
 int __is_a_internal(const void *obj, const void *arg)
@@ -509,7 +621,10 @@ int __like_a_internal(const void *obj, const void *arg)
 		&alloc_site
 	);
 	
-	if (__builtin_expect(err != NULL, 0)) return 1; // liballocs has already counted this abort
+	if (__builtin_expect(err != NULL, 0)) {
+		__libcrunch_failed_liballocs_err++;
+		return 1; // liballocs has already counted this abort
+	}
 	
 	signed target_offset_within_uniqtype = (char*) obj - (char*) alloc_start;
 	/* If we're searching in a heap array, we need to take the offset modulo the
@@ -660,10 +775,235 @@ like_a_failed:
 	return 1; // HACK: so that the program will continue
 }
 
-int __loosely_like_a_internal(const void *obj, const void *r)
+int __loosely_like_a_internal(const void *obj, const void *arg)
 {
 	PRINTD("__loosely_like_a_internal");
+	/* We might not be initialized yet (recall that __libcrunch_global_init is 
+	 * not a constructor, because it's not safe to call super-early). */
+	if (!__libcrunch_check_init()) return 1;
+	
+	struct uniqtype *test_uniqtype = (struct uniqtype *) arg;
+	struct allocator *a;
+	const void *alloc_start;
+	unsigned long alloc_size_bytes;
+	struct uniqtype *alloc_uniqtype = (struct uniqtype *)0;
+	const void *alloc_site;
+	void *caller_address = __builtin_return_address(0);
+	
+	struct liballocs_err *err = __liballocs_get_alloc_info(obj, 
+		&a,
+		&alloc_start,
+		&alloc_size_bytes,
+		&alloc_uniqtype, 
+		&alloc_site);
+	
+	if (__builtin_expect(err != NULL, 0)) {
+		__libcrunch_failed_liballocs_err++;
+		return 1; // liballocs has already counted this abort
+	}
+	
+	/* HACK */
+	reinstate_looseness_if_necessary(alloc_start, alloc_site, alloc_uniqtype);
+	
+	signed target_offset_within_alloc_uniqtype = (char*) obj - (char*) alloc_start;
+	/* If we're searching in a heap array, we need to take the offset modulo the 
+	 * element size. Otherwise just take the whole-block offset. */
+	if (ALLOC_IS_DYNAMICALLY_SIZED(alloc_start, alloc_site)
+			&& alloc_uniqtype
+			&& alloc_uniqtype->pos_maxoff != 0)
+	{
+		target_offset_within_alloc_uniqtype %= alloc_uniqtype->pos_maxoff;
+	}
+	
+	struct uniqtype *cur_alloc_subobj_uniqtype = alloc_uniqtype;
+	struct uniqtype *cur_containing_uniqtype = NULL;
+	struct uniqtype_rel_info *cur_contained_pos = NULL;
+	
+	/* Descend the subobject hierarchy until our target offset is zero, i.e. we 
+	 * find the outermost thing in the subobject tree that starts at the address
+	 * we were passed (obj). */
+	while (target_offset_within_alloc_uniqtype != 0)
+	{
+		_Bool success = __liballocs_first_subobject_spanning(
+				&target_offset_within_alloc_uniqtype, &cur_alloc_subobj_uniqtype, &cur_containing_uniqtype,
+				&cur_contained_pos);
+		if (!success) goto loosely_like_a_failed;
+	}
+	
+	do
+	{
+		
+	// trivially, identical types are like one another
+	if (test_uniqtype == cur_alloc_subobj_uniqtype) goto loosely_like_a_succeeded;
+	
+	// if our check type is a pointer type
+	int real_degree;
+	if (UNIQTYPE_IS_POINTER_TYPE(test_uniqtype)
+			&& 0 != (real_degree = is_generic_pointer_type_of_degree_at_least(test_uniqtype, 1)))
+	{
+		// the pointed-to object must have at least the same degree
+		if (holds_pointer_of_degree(cur_alloc_subobj_uniqtype, real_degree, 0))
+		{
+			++__libcrunch_succeeded;
+			return 1;
+		}
+		
+		// nothing is like a non-generic pointer
+		goto try_deeper;
+	}
+	
+	// arrays are special
+	_Bool matches;
+	if (__builtin_expect(UNIQTYPE_IS_ARRAY_TYPE(cur_alloc_subobj_uniqtype)
+			|| UNIQTYPE_IS_ARRAY_TYPE(test_uniqtype), 0))
+	{
+		matches = 
+			test_uniqtype == cur_alloc_subobj_uniqtype
+		||  (UNIQTYPE_IS_ARRAY_TYPE(test_uniqtype) && UNIQTYPE_ARRAY_LENGTH(test_uniqtype) == 1 
+				&& UNIQTYPE_ARRAY_ELEMENT_TYPE(test_uniqtype) == cur_alloc_subobj_uniqtype)
+		||  (UNIQTYPE_IS_ARRAY_TYPE(cur_alloc_subobj_uniqtype) && UNIQTYPE_ARRAY_LENGTH(cur_alloc_subobj_uniqtype) == 1
+				&& UNIQTYPE_ARRAY_ELEMENT_TYPE(cur_alloc_subobj_uniqtype) == test_uniqtype);
+		/* We don't need to allow an array of one blah to be like a different
+		 * array of one blah, because they should be the same type. 
+		 * FIXME: there's a difficult case: an array of statically unknown length, 
+		 * which happens to have length 1. */
+		if (matches) goto loosely_like_a_succeeded; else goto try_deeper;
+	}
+	
+	/* We might have base types with signedness complements. */
+	if (__builtin_expect(
+			!UNIQTYPE_IS_BASE_TYPE(cur_alloc_subobj_uniqtype) 
+			|| UNIQTYPE_IS_BASE_TYPE(test_uniqtype), 0))
+	{
+		/* Does the cur obj type have a signedness complement matching the test type? */
+		if (UNIQTYPE_BASE_TYPE_SIGNEDNESS_COMPLEMENT(cur_alloc_subobj_uniqtype)
+				== test_uniqtype) goto loosely_like_a_succeeded;
+		/* Does the test type have a signedness complement matching the cur obj type? */
+		if (UNIQTYPE_BASE_TYPE_SIGNEDNESS_COMPLEMENT(test_uniqtype)
+				== cur_alloc_subobj_uniqtype) goto loosely_like_a_succeeded;
+	}
+	
+	/* Okay, we can start the like-a test: for each element in the test type, 
+	 * do we have a type-equivalent in the object type?
+	 * 
+	 * We make an exception for arrays of char (signed or unsigned): if an
+	 * element in the test type is such an array, we skip over any number of
+	 * fields in the object type, until we reach the offset of the end element.  */
+	unsigned i_obj_subobj = 0, i_test_subobj = 0;
+	if (test_uniqtype != cur_alloc_subobj_uniqtype)
+		debug_printf(0, "__loosely_like_a proceeding on subobjects of (test) %s and (object) %s\n",
+			NAME_FOR_UNIQTYPE(test_uniqtype), NAME_FOR_UNIQTYPE(cur_alloc_subobj_uniqtype));
+	for (; 
+		i_obj_subobj < UNIQTYPE_COMPOSITE_MEMBER_COUNT(cur_alloc_subobj_uniqtype)
+			&& i_test_subobj < UNIQTYPE_COMPOSITE_MEMBER_COUNT(test_uniqtype); 
+		++i_test_subobj, ++i_obj_subobj)
+	{
+		debug_printf(0, "Subobject types are (test) %s and (object) %s\n",
+			NAME_FOR_UNIQTYPE((struct uniqtype *) test_uniqtype->related[i_test_subobj].un.memb.ptr), 
+			NAME_FOR_UNIQTYPE((struct uniqtype *) cur_alloc_subobj_uniqtype->related[i_obj_subobj].un.memb.ptr));
+		
+		if (__builtin_expect(UNIQTYPE_IS_ARRAY_TYPE(test_uniqtype->related[i_test_subobj].un.memb.ptr)
+			&& (UNIQTYPE_ARRAY_ELEMENT_TYPE(test_uniqtype->related[i_test_subobj].un.memb.ptr)
+					== pointer_to___uniqtype__signed_char
+			|| UNIQTYPE_ARRAY_ELEMENT_TYPE(test_uniqtype->related[i_test_subobj].un.memb.ptr)
+					== pointer_to___uniqtype__unsigned_char), 0))
+		{
+			// we will skip this field in the test type
+			signed target_off =
+				UNIQTYPE_COMPOSITE_MEMBER_COUNT(test_uniqtype) > i_test_subobj + 1
+			 ?  test_uniqtype->related[i_test_subobj + 1].un.memb.off
+			 :  test_uniqtype->related[i_test_subobj].un.memb.off
+			      + test_uniqtype->related[i_test_subobj].un.memb.ptr->pos_maxoff;
+			
+			// ... if there's more in the test type, advance i_obj_subobj
+			while (i_obj_subobj + 1 < UNIQTYPE_COMPOSITE_MEMBER_COUNT(cur_alloc_subobj_uniqtype) &&
+				cur_alloc_subobj_uniqtype->related[i_obj_subobj + 1].un.memb.off < target_off) ++i_obj_subobj;
+			/* We fail if we ran out of stuff in the actual object type
+			 * AND there is more to go in the test (cast-to) type. */
+			if (i_obj_subobj + 1 >= UNIQTYPE_COMPOSITE_MEMBER_COUNT(cur_alloc_subobj_uniqtype)
+			 && UNIQTYPE_COMPOSITE_MEMBER_COUNT(test_uniqtype) > i_test_subobj + 1) goto try_deeper;
+				
+			continue;
+		}
+		
+		int generic_ptr_degree = 0;
+		matches = 
+				(test_uniqtype->related[i_test_subobj].un.memb.off
+				== cur_alloc_subobj_uniqtype->related[i_obj_subobj].un.memb.off)
+		 && (
+				// exact match
+				(test_uniqtype->related[i_test_subobj].un.memb.ptr
+				 == cur_alloc_subobj_uniqtype->related[i_obj_subobj].un.memb.ptr)
+				|| // loose match: if the test type has a generic ptr...
+				(
+					0 != (
+						generic_ptr_degree = is_generic_pointer_type_of_degree_at_least(
+							test_uniqtype->related[i_test_subobj].un.memb.ptr, 1)
+					)
+					&& pointer_has_degree(
+						(struct uniqtype *) cur_alloc_subobj_uniqtype->related[i_obj_subobj].un.memb.ptr,
+						generic_ptr_degree
+					)
+				)
+				|| // loose match: signed/unsigned
+				(UNIQTYPE_IS_BASE_TYPE(test_uniqtype->related[i_test_subobj].un.memb.ptr)
+				 && UNIQTYPE_IS_BASE_TYPE(cur_alloc_subobj_uniqtype->related[i_obj_subobj].un.memb.ptr)
+				 && 
+				 (UNIQTYPE_BASE_TYPE_SIGNEDNESS_COMPLEMENT((struct uniqtype *) test_uniqtype->related[i_test_subobj].un.memb.ptr)
+					== ((struct uniqtype *) cur_alloc_subobj_uniqtype->related[i_obj_subobj].un.memb.ptr))
+				)
+		);
+		if (!matches) goto try_deeper;
+	}
+	// if we terminated because we ran out of fields in the target type, fail
+	if (i_test_subobj < UNIQTYPE_COMPOSITE_MEMBER_COUNT(test_uniqtype)) goto try_deeper;
+	
+	// if we got here, we succeeded
+	goto loosely_like_a_succeeded;
+	
+	_Bool success;
+	try_deeper:
+		debug_printf(0, "No dice; will try the object type one level down if there is one...\n");
+		success = __liballocs_first_subobject_spanning(
+				&target_offset_within_alloc_uniqtype, &cur_alloc_subobj_uniqtype, &cur_containing_uniqtype,
+				&cur_contained_pos);
+		if (!success) goto loosely_like_a_failed;
+		debug_printf(0, "... got %s\n", NAME_FOR_UNIQTYPE(cur_alloc_subobj_uniqtype));
+
+	} while (1);
+	
+loosely_like_a_succeeded:
+	if (test_uniqtype != alloc_uniqtype) debug_printf(0, "__loosely_like_a succeeded! test type %s, allocation type %s\n",
+		NAME_FOR_UNIQTYPE(test_uniqtype), NAME_FOR_UNIQTYPE(alloc_uniqtype));
+	++__libcrunch_succeeded;
 	return 1;
+	
+	// if we got here, we've failed
+	// if we got here, the check failed
+loosely_like_a_failed:
+	if (__currently_allocating || __currently_freeing) 
+	{
+		++__libcrunch_failed_in_alloc;
+		// suppress warning
+	}
+	else
+	{
+		++__libcrunch_failed;
+		if (!is_suppressed(UNIQTYPE_NAME(test_uniqtype), __builtin_return_address(0), alloc_uniqtype ? UNIQTYPE_NAME(alloc_uniqtype) : NULL))
+		{
+			if (should_report_failure_at(__builtin_return_address(0)))
+			{
+				debug_printf(0, "Failed check __loosely_like_a(%p, %p a.k.a. \"%s\") at %p (%s), allocation was a %s%s%s originating at %p\n", 
+					obj, test_uniqtype, UNIQTYPE_NAME(test_uniqtype),
+					__builtin_return_address(0), format_symbolic_address(__builtin_return_address(0)),
+					a ? a->name : "(no allocator)",
+					(ALLOC_IS_DYNAMICALLY_SIZED(alloc_start, alloc_site) && alloc_uniqtype && alloc_size_bytes > alloc_uniqtype->pos_maxoff) ? " allocation of " : " ", 
+					NAME_FOR_UNIQTYPE(alloc_uniqtype), 
+					alloc_site);
+			}
+		}
+	}
+	return 1; // HACK: so that the program will continue
 }
 
 /* This is called to check casts to a user-defined type that has
@@ -702,7 +1042,10 @@ int __check_args_internal(const void *obj, int nargs, ...)
 		&fun_uniqtype,
 		&alloc_site);
 	
-	if (err != NULL) return 1;
+	if (err != NULL) {
+		__libcrunch_failed_liballocs_err++;
+		return 1;
+	}
 	
 	assert(fun_uniqtype);
 	assert(alloc_start == obj);
@@ -783,6 +1126,7 @@ int __is_a_function_refining_internal(const void *obj, const void *arg)
 	
 	if (__builtin_expect(err != NULL, 0))
 	{
+		__libcrunch_failed_liballocs_err++;
 		return 1;
 	}
 	
@@ -955,8 +1299,285 @@ int __is_a_pointer_of_degree_internal(const void *obj, int d)
 	return 1;
 }
 
-int __can_hold_pointer_internal(const void *obj, const void *target)
+/* If we're writing into a non-generic pointer, 
+ * __is_a(value, target's pointee type) must hold. It could hold at
+ * any level in the stack of subobjects that "value" points into, so
+ * we need the full __is_a check.
+ * 
+ * If we're writing into a generic pointer, we're more relaxed, but 
+ * if target has degree 3, "value" must be the address of a degree2 pointer.
+ */
+struct match_cb_args
 {
-	PRINTD("__can_hold_pointer_internal");
-	return 1;
+	struct uniqtype *type_of_pointer_being_stored_to;
+	signed target_offset;
+};
+static int match_pointer_subobj_strict_cb(struct uniqtype *spans, signed span_start_offset, 
+		unsigned depth, struct uniqtype *containing, struct uniqtype_rel_info *contained_pos, 
+		signed containing_span_start_offset, void *arg)
+{
+	/* We're storing a pointer that is legitimately a pointer to t (among others) */
+	struct uniqtype *t = spans;
+	struct match_cb_args *args = (struct match_cb_args *) arg;
+	struct uniqtype *type_we_can_store = UNIQTYPE_POINTEE_TYPE(args->type_of_pointer_being_stored_to);
+	
+	if (span_start_offset == args->target_offset && type_we_can_store == t)
+	{
+		return 1;
+	}
+	return 0;
+}
+static int match_pointer_subobj_generic_cb(struct uniqtype *spans, signed span_start_offset, 
+		unsigned depth, struct uniqtype *containing, struct uniqtype_rel_info *contained_pos, 
+		signed containing_span_start_offset, void *arg)
+{
+	/* We're storing a pointer that is legitimately a pointer to t (among others) */
+	struct uniqtype *t = spans;
+	struct match_cb_args *args = (struct match_cb_args *) arg;
+	
+	int degree_of_pointer_stored_to = pointer_degree(args->type_of_pointer_being_stored_to);
+
+	if (span_start_offset == 0 && pointer_has_degree(t, degree_of_pointer_stored_to - 1))
+	{
+		return 1;
+	}
+	else return 0;
+}
+int __can_hold_pointer_internal(const void *obj, const void *value)
+{
+	PRINTD2("__can_hold_pointer_internal: obj: %p, value: %p", obj, value);
+	/* We might not be initialized yet (recall that __libcrunch_global_init is 
+	 * not a constructor, because it's not safe to call super-early). */
+	if (!__libcrunch_check_init()) return 1;
+
+	/* To hold a pointer, we must be a pointer. Find the pointer subobject at `obj'. */
+	struct allocator *obj_a = NULL;
+	const void *obj_alloc_start;
+	unsigned long obj_alloc_size_bytes;
+	struct uniqtype *obj_alloc_uniqtype = (struct uniqtype *)0;
+	const void *obj_alloc_site;
+	
+	struct liballocs_err *obj_err = __liballocs_get_alloc_info(obj, 
+		&obj_a,
+		&obj_alloc_start,
+		&obj_alloc_size_bytes,
+		&obj_alloc_uniqtype,
+		&obj_alloc_site);
+	
+	if (__builtin_expect(obj_err != NULL, 0))
+	{
+		return 1;
+	}
+	
+	signed obj_target_offset_within_uniqtype = (char*) obj - (char*) obj_alloc_start;
+	/* If we're searching in a heap array, we need to take the offset modulo the 
+	 * element size. Otherwise just take the whole-block offset. */
+	if (ALLOC_IS_DYNAMICALLY_SIZED(obj_alloc_start, obj_alloc_site)
+			&& obj_alloc_uniqtype
+			&& obj_alloc_uniqtype->pos_maxoff != 0)
+	{
+		obj_target_offset_within_uniqtype %= obj_alloc_uniqtype->pos_maxoff;
+	}
+	
+	struct uniqtype *cur_obj_uniqtype = obj_alloc_uniqtype;
+	struct uniqtype *cur_containing_uniqtype = NULL;
+	struct uniqtype_rel_info *cur_contained_pos = NULL;
+	
+	/* Descend the subobject hierarchy until we can't go any further (since pointers
+	 * are atomic. */
+	_Bool success = 1;
+	while (success)
+	{
+		success = __liballocs_first_subobject_spanning(
+			&obj_target_offset_within_uniqtype, &cur_obj_uniqtype, &cur_containing_uniqtype,
+			&cur_contained_pos);
+	}
+	struct uniqtype *type_of_pointer_being_stored_to = cur_obj_uniqtype;
+	
+	struct allocator *value_a = NULL;
+	const void *value_alloc_start = NULL;
+	unsigned long value_alloc_size_bytes = (unsigned long) -1;
+	struct uniqtype *value_alloc_uniqtype = (struct uniqtype *)0;
+	const void *value_alloc_site = NULL;
+	_Bool value_contract_is_specialisable = 0;
+	
+	/* Might we have a pointer? */
+	if (obj_target_offset_within_uniqtype == 0 && UNIQTYPE_IS_POINTER_TYPE(cur_obj_uniqtype))
+	{
+		int d;
+		struct uniqtype *ultimate_pointee_type;
+		pointer_degree_and_ultimate_pointee_type(type_of_pointer_being_stored_to, &d, &ultimate_pointee_type);
+		assert(d > 0);
+		assert(ultimate_pointee_type);
+		
+		/* Is this a generic pointer, of zero degree? */
+		_Bool is_generic = is_generic_ultimate_pointee(ultimate_pointee_type);
+		if (d == 1 && is_generic)
+		{
+			/* We pass if the value as (at least) equal degree.
+			 * Note that the value is "off-by-one" in degree: 
+			 * if target has degree 1, any address will do. */
+			++__libcrunch_succeeded;
+			return 1;
+		}
+		
+		/* If we got here, we're going to have to understand `value',
+		 * whether we're generic or not. */
+		
+// 		if (is_generic_ultimate_pointee(ultimate_pointee_type))
+// 		{
+// 			/* if target has degree 2, "value" must be the address of a degree1 pointer.
+// 			 * if target has degree 3, "value" must be the address of a degree2 pointer.
+// 			 * Etc. */
+// 			struct uniqtype *value_pointee_uniqtype
+// 			 = __liballocs_get_alloc_type_innermost(value);
+// 			assert(value_pointee_uniqtype);
+// 			if (pointer_has_degree(value_pointee_uniqtype, d - 1))
+// 			{
+// 				++__libcrunch_succeeded;
+// 				return 1;
+// 			}
+// 		}
+
+		struct liballocs_err *value_err = __liballocs_get_alloc_info(value, 
+			&value_a,
+			&value_alloc_start,
+			&value_alloc_size_bytes,
+			&value_alloc_uniqtype,
+			&value_alloc_site);
+
+		if (__builtin_expect(value_err != NULL, 0)) return 1; // liballocs has already counted this abort
+		
+		signed value_target_offset_within_uniqtype = (char*) value - (char*) value_alloc_start;
+		/* If we're searching in a heap array, we need to take the offset modulo the 
+		 * element size. Otherwise just take the whole-block offset. */
+		if (ALLOC_IS_DYNAMICALLY_SIZED(value_alloc_start, value_alloc_site)
+				&& value_alloc_uniqtype
+				&& value_alloc_uniqtype->pos_maxoff != 0)
+		{
+			value_target_offset_within_uniqtype %= value_alloc_uniqtype->pos_maxoff;
+		}
+		/* HACK: preserve looseness of value. */
+		reinstate_looseness_if_necessary(value_alloc_start, value_alloc_site, value_alloc_uniqtype);
+
+		/* See if the top-level object matches */
+		struct match_cb_args args = {
+			.type_of_pointer_being_stored_to = type_of_pointer_being_stored_to,
+			.target_offset = value_target_offset_within_uniqtype
+		};
+		int ret = (is_generic ? match_pointer_subobj_generic_cb : match_pointer_subobj_strict_cb)(
+			value_alloc_uniqtype,
+			0,
+			0,
+			NULL, NULL,
+			0, 
+			&args
+		);
+		/* Here we walk the subobject hierarchy until we hit 
+		 * one that is at the right offset and equals test_uniqtype.
+		 
+		 __liballocs_walk_subobjects_starting(
+		 
+		 ) ... with a cb that tests equality with test_uniqtype and returns 
+		 
+		 */
+		if (!ret) ret = __liballocs_walk_subobjects_spanning(value_target_offset_within_uniqtype, 
+			value_alloc_uniqtype, 
+			is_generic ? match_pointer_subobj_generic_cb : match_pointer_subobj_strict_cb, 
+			&args);
+		
+		if (ret)
+		{
+			++__libcrunch_succeeded;
+			return 1;
+		}
+	}
+	/* Can we specialise the contract of
+	 * 
+	 *  either the written-to pointer
+	 * or
+	 *  the object pointed to 
+	 *
+	 * so that the check would succeed?
+	 * 
+	 * We can only specialise the contract of as-yet-"unused" objects.
+	 * Might the written-to pointer be as-yet-"unused"?
+	 * We know the check failed, so currently it can't point to the
+	 * value we want it to, either because it's generic but has too-high degree
+	 * or because it's non-generic and doesn't match "value".
+	 * These don't seem like cases we want to specialise. The only one
+	 * that makes sense is replacing it with a lower degree, and I can't see
+	 * any practical case where that would arise (e.g. allocating sizeof void***
+	 * when you actually want void** -- possible but weird).
+	 * 
+	 * Might the "value" object be as-yet-unused?
+	 * Yes, certainly.
+	 * The check failed, so it's the wrong type.
+	 * If a refinement of its type yields a "right" type,
+	 * we might be in business.
+	 * What's a "right" type?
+	 * If the written-to pointer is not generic, then it's that target type.
+	 */
+	// FIXME: use value_alloc_start to avoid another heap lookup
+	struct insert *value_object_info = __liballocs_get_insert(value);
+	/* HACK: until we have a "loose" bit */
+	struct uniqtype *pointee = UNIQTYPE_POINTEE_TYPE(type_of_pointer_being_stored_to);
+
+	if (!is_generic_pointer_type(type_of_pointer_being_stored_to)
+		&& value_alloc_uniqtype
+		&& UNIQTYPE_IS_POINTER_TYPE(value_alloc_uniqtype)
+		&& is_generic_pointer_type(value_alloc_uniqtype)
+		&& value_object_info
+		&& STORAGE_CONTRACT_IS_LOOSE(value_object_info, value_alloc_site))
+	{
+		value_object_info->alloc_site_flag = 1;
+		value_object_info->alloc_site = (uintptr_t) pointee; // i.e. *not* loose!
+		debug_printf(0, "libcrunch: specialised allocation at %p from %s to %s\n", 
+			value, NAME_FOR_UNIQTYPE(value_alloc_uniqtype), NAME_FOR_UNIQTYPE(pointee));
+		++__libcrunch_lazy_heap_type_assignment;
+		return 1;
+	}
+
+can_hold_pointer_failed:
+	if (__currently_allocating || __currently_freeing)
+	{
+		++__libcrunch_failed_in_alloc;
+		// suppress warning
+	}
+	else
+	{
+		++__libcrunch_failed;
+		// split up debug statements are because printf was segfaulting on long
+		// strings no idea why
+		debug_printf(0,
+			"Failed check __can_hold_pointer(%p, %p) at %p (%s), ",
+			obj, value,
+			__builtin_return_address(0),
+			format_symbolic_address(__builtin_return_address(0))
+		);
+		debug_printf(0,
+			"target pointer is a %s, %ld ",
+			NAME_FOR_UNIQTYPE(type_of_pointer_being_stored_to),
+			(long)((char*) obj - (char*) obj_alloc_start)
+		);
+		debug_printf(0,
+			"bytes into a %s%s%s originating at %p, ",
+			obj_a ? obj_a->name : "(no allocator)",
+			(ALLOC_IS_DYNAMICALLY_SIZED(obj_alloc_start, obj_alloc_site) && obj_alloc_uniqtype && obj_alloc_size_bytes > obj_alloc_uniqtype->pos_maxoff) ? " allocation of " : " ", 
+			NAME_FOR_UNIQTYPE(obj_alloc_uniqtype),
+			obj_alloc_site
+		);
+		debug_printf(0,
+			"value points %ld bytes into a ",
+			(long)((char*) value - (char*) value_alloc_start),
+		);
+		debug_printf(0,
+			"%s%s%s originating at %p\n",
+			value_a ? value_a->name : "(no allocator)",
+			(ALLOC_IS_DYNAMICALLY_SIZED(value_alloc_start, value_alloc_site) && value_alloc_uniqtype && value_alloc_size_bytes > value_alloc_uniqtype->pos_maxoff) ? " allocation of " : " ",
+			NAME_FOR_UNIQTYPE(value_alloc_uniqtype)
+		);
+	}
+	return 1; // fail, but program continues
+	
 }

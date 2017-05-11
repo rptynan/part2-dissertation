@@ -24,7 +24,8 @@ default: checkall
 checkall: clear-stamps checkrun-my-test checkrun-index-tree-test \
 	checkrun-hello-heap checkrun-hello-array checkrun-hello-errno \
 	checkrun-hello-indirect checkrun-hello-funptr checkrun-hello-sizeofness \
-	checkrun-hello-static1 checkrun-fail-funptr
+	checkrun-hello-static1 checkrun-fail-funptr \
+	checkrun-fail-voidptrptr-invalid
 	# renamed static -> static1 because crunchcc is ignoring *static.c
 	# Have ignored:
 	# hello-void (init check)
@@ -71,11 +72,12 @@ fail-%/check-stamp: $(RERUN_TESTS_ON_CHANGE)
 	@echo "expected-fail case is fail-$*" && \
 	out=$$( echo -n "out is " 1>&2; mktemp | tee /dev/stderr ) && \
 	err=$$( echo -n "err is " 1>&2; mktemp | tee /dev/stderr ) && \
-	$(MAKE) cleanrun-fail-$* 1>$$out 2>$$err && \
+	$(MAKE) cleanrun-fail-$*  2>$$err && \
 		. ./checks.sh && tail -n26 "$$err" | \
 		    match "       failed otherwise" '[1-9][0-9]*' >/dev/null && \
 		    touch "$@" || \
 		(tail -n26 $$err; false)
+	# redirecting stdout causes segfault?!
 
 # Some cases just need to run without error
 checkrun-my-test: my-test/check-stamp
