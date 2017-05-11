@@ -1,7 +1,7 @@
 From 202364536896ca0d1806ba460b9161a16528f6ae Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:25:31 +0000
-Subject: [PATCH 1/5] Adding extern to prevent warnings about common symbols
+Subject: [PATCH 1/6] Adding extern to prevent warnings about common symbols
 
 ---
  include/libcrunch_cil_inlines.h | 6 +++---
@@ -31,7 +31,7 @@ index 06c5803..f9e95ef 100644
 From d78af9aa5acff1dc682782c8a20ba62e59e0dad0 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:27:27 +0000
-Subject: [PATCH 2/5] Added blacklist to runUnderlyingCompiler().
+Subject: [PATCH 2/6] Added blacklist to runUnderlyingCompiler().
 
 ---
  frontend/c/bin/crunchcc | 72 +++++++++++++++++++++++++++++++++++++++++++++++++
@@ -127,7 +127,7 @@ index e375481..d5ab5e5 100755
 From 5a4bef3cfbea862b6860531a8fdd9731d4bbeba5 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Mon, 20 Feb 2017 23:31:10 +0000
-Subject: [PATCH 3/5] Again added extern to stop warnings about common symbols
+Subject: [PATCH 3/6] Again added extern to stop warnings about common symbols
 
 ---
  include/libcrunch_cil_inlines.h | 6 +++---
@@ -157,7 +157,7 @@ index f9e95ef..624fc68 100644
 From 2b9dfbfb1c8842a0d1e0fa6203ed295c57c3c3ab Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Mon, 20 Feb 2017 23:31:30 +0000
-Subject: [PATCH 4/5] Blacklist has been moved to allocscompilerwrapper.py in
+Subject: [PATCH 4/6] Blacklist has been moved to allocscompilerwrapper.py in
  liballocs
 
 ---
@@ -254,7 +254,7 @@ index d5ab5e5..e375481 100755
 From 8a55dadefd2f5322133ffd652bf36ce28ef4f82b Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Sat, 25 Mar 2017 09:36:09 +0000
-Subject: [PATCH 5/5] Added debugging code in libcrunch_cil_inlines.h
+Subject: [PATCH 5/6] Added debugging code in libcrunch_cil_inlines.h
 
 ---
  include/libcrunch_cil_inlines.h | 45 +++++++++++++++++++++++++++++++++++++++--
@@ -354,6 +354,96 @@ index 624fc68..9f2e0ee 100644
 +	PRINTD1("2 obj: %u", obj);
 +	/* PRINTD1("2 __uniqtype__tty: %u", &__uniqtype__tty); */
 +	PRINTD1("2 uniqtype: %u", uniqtype);
+ 	// miss: __is_a_internal will cache if it's cacheable
+ 	int ret = __is_a_internal((const void *) __libcrunch_detrap(obj), uniqtype); 
+ 	
+-- 
+2.9.0
+
+
+From d7355be6ad0bf3292701a11de854159eb5889bf5 Mon Sep 17 00:00:00 2001
+From: Richard Tynan <richard@tynan.me>
+Date: Thu, 11 May 2017 14:09:24 +0100
+Subject: [PATCH 6/6] More printouts
+
+---
+ include/libcrunch_cil_inlines.h | 22 ++++++++++------------
+ 1 file changed, 10 insertions(+), 12 deletions(-)
+
+diff --git a/include/libcrunch_cil_inlines.h b/include/libcrunch_cil_inlines.h
+index 9f2e0ee..0508817 100644
+--- a/include/libcrunch_cil_inlines.h
++++ b/include/libcrunch_cil_inlines.h
+@@ -8,12 +8,16 @@
+   #define KTR_COMPILE KTR_PTRACE
+   #define PRINTD(x) CTR0(KTR_PTRACE, x)
+   #define PRINTD1(f, x) CTR1(KTR_PTRACE, f,x)
++  #define PRINTD2(f, x1, x2) CTR2(KTR_PTRACE, f, x1, x2)
+ #elif DEBUG_CIL_INLINES == 2
++  extern int printf(const char* format, ... );
+   #define PRINTD(x) printf(x "\n")
+   #define PRINTD1(f, x) printf(f "\n", x)
++  #define PRINTD2(f, x1, x2) printf(f "\n", x1, x2)
+ #else
+   #define PRINTD(x) if(0 && x)
+   #define PRINTD1(f, x) if(0 && f && x)
++  #define PRINTD2(f, x1, x2) if(0 && f && x1 && x2)
+ #endif
+ /* Don't use cache for debugging */
+ #define LIBCRUNCH_NO_CACHE
+@@ -539,15 +543,15 @@ extern inline int (__attribute__((always_inline,gnu_inline)) __is_aU )(const voi
+ extern inline int (__attribute__((always_inline,gnu_inline)) __is_aU )(const void *obj, const void *uniqtype)
+ {
+ #ifndef LIBCRUNCH_NOOP_INLINES
+-    PRINTD("__is_aU() started");
++    PRINTD2("__is_aU(), obj: %p, type: %p", obj, uniqtype);
+ 	if (!obj) 
+ 	{ 
+-        PRINTD("__is_aU() !obj");
++        PRINTD("__is_aU() !obj, returning");
+ 		return 1; 
+ 	} 
+ 	if (obj == (void*) -1) 
+ 	{ 
+-        PRINTD("__is_aU() obj == (void*) -1");
++        PRINTD("__is_aU() obj == (void*) -1, returning");
+ 		return 1; 
+ 	} 
+ 	// int inited = __libcrunch_check_init (); 
+@@ -560,7 +564,7 @@ extern inline int (__attribute__((always_inline,gnu_inline)) __is_aU )(const voi
+ 	 * linked with enough uniqtypes data. */ 
+ 	if (unlikely(!uniqtype))
+ 	{ 
+-        PRINTD("__is_aU() unlikely(!uniqtype)");
++        PRINTD("__is_aU() !uniqtype, (no type data?), returning");
+ 	   __libcrunch_begun++; 
+ 	   __libcrunch_aborted_typestr++; 
+ 		 return 1; 
+@@ -581,7 +585,7 @@ extern inline int (__attribute__((always_inline,gnu_inline)) __is_aU )(const voi
+ 	#endif
+ 	if (hit)
+ 	{
+-        PRINTD("__is_aU() hit");
++        PRINTD("__is_aU() cache hit");
+ 		// hit!
+ 		++__libcrunch_is_a_hit_cache;
+ 		if (hit->result) 
+@@ -593,17 +597,11 @@ extern inline int (__attribute__((always_inline,gnu_inline)) __is_aU )(const voi
+ 		{
+ 			// to make sure the error message and suppression handling happen,
+ 			// we have to call the slow-path code.
+-			/* PRINTD1("1 %u", &__libcrunch_detrap); */
+-			PRINTD1("1 %u", obj);
+ 			return __is_a_internal((const void *) __libcrunch_detrap(obj), uniqtype); 
+ 		}
+ 		return 1; //__libcrunch_is_a_cache[i].result;
+ 	}
+-	/* PRINTD1("2 %u", &__libcrunch_detrap); */
+-    PRINTD("__is_aU() no hit");
+-	PRINTD1("2 obj: %u", obj);
+-	/* PRINTD1("2 __uniqtype__tty: %u", &__uniqtype__tty); */
+-	PRINTD1("2 uniqtype: %u", uniqtype);
++    PRINTD("__is_aU() cache miss");
  	// miss: __is_a_internal will cache if it's cacheable
  	int ret = __is_a_internal((const void *) __libcrunch_detrap(obj), uniqtype); 
  	

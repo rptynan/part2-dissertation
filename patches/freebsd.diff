@@ -17,7 +17,7 @@ Index: sys/conf/files
 ===================================================================
 --- sys/conf/files	(revision 313929)
 +++ sys/conf/files	(working copy)
-@@ -4106,3 +4106,13 @@
+@@ -4106,3 +4106,19 @@
  xdr/xdr_mem.c			optional krpc | nfslockd | nfsclient | nfsserver | nfscl | nfsd
  xdr/xdr_reference.c		optional krpc | nfslockd | nfsclient | nfsserver | nfscl | nfsd
  xdr/xdr_sizeof.c		optional krpc | nfslockd | nfsclient | nfsserver | nfscl | nfsd
@@ -26,11 +26,46 @@ Index: sys/conf/files
 +libcrunchk/pageindex.c				standard
 +libcrunchk/index_tree.c				standard
 +libcrunchk/allocators/generic_malloc.c				standard
-+libcrunchk/types/typesstack.c		standard
-+libcrunchk/types/types1.c			standard
-+libcrunchk/types/types2.c			standard
-+libcrunchk/types/types3.c			standard
-+libcrunchk/types/types4.c			standard
++libcrunchk/allocators/static.c				standard
++libcrunchk/types/typesstack.c		standard	\
++	compile-with	"${NORMAL_C} && objcopy --weaken ${.TARGET}"
++libcrunchk/types/types1.c			standard	\
++	compile-with	"${NORMAL_C} && objcopy --weaken ${.TARGET}"
++libcrunchk/types/types2.c			standard	\
++	compile-with	"${NORMAL_C} && objcopy --weaken ${.TARGET}"
++libcrunchk/types/types3.c			standard	\
++	compile-with	"${NORMAL_C} && objcopy --weaken ${.TARGET}"
++libcrunchk/types/types4.c			standard	\
++	compile-with	"${NORMAL_C} && objcopy --weaken ${.TARGET}"
+Index: sys/conf/kern.pre.mk
+===================================================================
+--- sys/conf/kern.pre.mk	(revision 313929)
++++ sys/conf/kern.pre.mk	(working copy)
+@@ -172,7 +172,7 @@
+ SYSTEM_OBJS+= hack.So
+ SYSTEM_LD= @${LD} -Bdynamic -T ${LDSCRIPT} ${LDFLAGS} --no-warn-mismatch \
+ 	-warn-common -export-dynamic -dynamic-linker /red/herring \
+-	-o ${.TARGET} -X ${SYSTEM_OBJS} vers.o
++	-o ${.TARGET} -X ${SYSTEM_OBJS} vers.o --Map /tmp/ldmap
+ SYSTEM_LD_TAIL= @${OBJCOPY} --strip-symbol gcc2_compiled. ${.TARGET} ; \
+ 	${SIZE} ${.TARGET} ; chmod 755 ${.TARGET}
+ SYSTEM_DEP+= ${LDSCRIPT}
+Index: sys/conf/ldscript.amd64
+===================================================================
+--- sys/conf/ldscript.amd64	(revision 313929)
++++ sys/conf/ldscript.amd64	(working copy)
+@@ -177,6 +177,11 @@
+     *(.ldata .ldata.* .gnu.linkonce.l.*)
+     . = ALIGN(. != 0 ? 64 / 8 : 1);
+   }
++  .meta   ALIGN(CONSTANT (MAXPAGESIZE)) + (. & (CONSTANT (MAXPAGESIZE) - 1)) :
++  {
++	. = . ;
++	 *(.meta .meta.*)
++  }
+   . = ALIGN(64 / 8);
+   _end = .; PROVIDE (end = .);
+   . = DATA_SEGMENT_END (.);
 Index: sys/conf/newvers.sh
 ===================================================================
 --- sys/conf/newvers.sh	(revision 313929)
@@ -83,29 +118,49 @@ Index: sys/dev/hyperv/vmbus/amd64/hyperv_machdep.c
 ===================================================================
 Index: sys/dev/hyperv/vmbus/amd64/vmbus_vector.S
 ===================================================================
+Index: sys/kern/kern_malloc.c
+===================================================================
+--- sys/kern/kern_malloc.c	(revision 313929)
++++ sys/kern/kern_malloc.c	(working copy)
+@@ -650,6 +650,8 @@
+ 	/* Copy over original contents */
+ 	bcopy(addr, newaddr, min(size, alloc));
+ 	free(addr, mtp);
++	// HACK
++	__wrap_realloc(addr, size, mtp, flags, newaddr);
+ 	return (newaddr);
+ }
+ 
 Index: sys/netinet/ip_icmp.c
 ===================================================================
 --- sys/netinet/ip_icmp.c	(revision 313929)
 +++ sys/netinet/ip_icmp.c	(working copy)
-@@ -353,6 +353,9 @@
+@@ -353,6 +353,10 @@
  	m_freem(n);
  }
  
-+#include <sys/malloc.h>  // rpt
++#include <sys/malloc.h>  // rpt ;;
 +MALLOC_DECLARE(M_LIBCRUNCH_TEST);
 +MALLOC_DEFINE(M_LIBCRUNCH_TEST, "libcrunchtest", "libcrunch test");
++struct tcphdr libcrunch_magic_test_tcphdr;
  /*
   * Process a received ICMP message.
   */
-@@ -369,6 +372,46 @@
+@@ -369,6 +373,71 @@
  	void (*ctlfunc)(int, struct sockaddr *, void *);
  	int fibnum;
  
 +
 +	// sockaddr_in and tcphdr are both in types, mbuf is not aliased
-+
++	//
 +	// On the stack:
 +#ifdef PRINTD1
++	extern char etext[], edata, end;
++	PRINTD("==================  ==================");
++	PRINTD1("etext: %p", &etext);
++	PRINTD1("edata: %p", &edata);
++	PRINTD1("end: %p", &end);
++	PRINTD1("%p", &inetsw);
 +	PRINTD("================== stack test ==================");
 +#endif
 +	struct mbuf m1;
@@ -140,6 +195,25 @@ Index: sys/netinet/ip_icmp.c
 +	PRINTD1("icmp_input, z2: %p", z2);
 +#endif
 +	free(m2, M_LIBCRUNCH_TEST);
++
++	// static:
++#ifdef PRINTD1
++	PRINTD("================== static test ==================");
++#endif
++	void *t3 = &libcrunch_magic_test_tcphdr;
++#ifdef PRINTD1
++	PRINTD("==== should pass: ====");
++#endif
++	struct tcphdr *y3 = (struct tcphdr *) t3;
++#ifdef PRINTD1
++	PRINTD("==== should fail: ====");
++#endif
++	struct sockaddr_in *z3 = (struct sockaddr_in *) t3;
++#ifdef PRINTD1
++	PRINTD1("icmp_input, t3: %p", t3);
++	PRINTD1("icmp_input, y3: %p", y3);
++	PRINTD1("icmp_input, z3: %p", z3);
++#endif
 +
  	/*
  	 * Locate icmp structure in mbuf, and check

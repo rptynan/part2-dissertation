@@ -1,7 +1,7 @@
 From 533b790930f51127523d186e68641dec40c061ad Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:37:32 +0000
-Subject: [PATCH 1/8] Removed linuxism in Makefile.am
+Subject: [PATCH 1/9] Removed linuxism in Makefile.am
 
 ---
  Makefile.am | 2 +-
@@ -27,7 +27,7 @@ index c12b321..c2a62ac 100644
 From 7550da1ea788f1de648a141dd21dcb3ea2929ebc Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:38:06 +0000
-Subject: [PATCH 2/8] Removed linuxism in used-types-funcs.sh
+Subject: [PATCH 2/9] Removed linuxism in used-types-funcs.sh
 
 ---
  tools/used-types-funcs.sh | 4 +++-
@@ -55,7 +55,7 @@ index 2dbc327..c3ed8e7 100755
 From 05c25fba38ab1464e432fe94a9e92365aff7de40 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:39:03 +0000
-Subject: [PATCH 3/8] Added blacklist in main of allocscompilerwrapper. Should
+Subject: [PATCH 3/9] Added blacklist in main of allocscompilerwrapper. Should
  probably merge other blacklist in crunchcc to here.
 
 ---
@@ -106,7 +106,7 @@ index 462a13c..776090c 100644
 From 5ff15f9f8e541363cc5869a46be58b4f28b511c8 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Thu, 16 Feb 2017 01:39:49 +0000
-Subject: [PATCH 4/8] link-used-types to not perform used-types as we're using
+Subject: [PATCH 4/9] link-used-types to not perform used-types as we're using
  dumptypes instead, and it's causing errors.
 
 ---
@@ -139,7 +139,7 @@ index 6bb591a..1263ff5 100755
 From 121494342fa7560112275122d813f8db03732c73 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Mon, 20 Feb 2017 23:28:55 +0000
-Subject: [PATCH 5/8] Cleaned up blacklist, etc, now crunchcc doesn't have a
+Subject: [PATCH 5/9] Cleaned up blacklist, etc, now crunchcc doesn't have a
  blacklist
 
 ---
@@ -228,7 +228,7 @@ index 776090c..3cf402c 100644
 From f2df193ce5c84072435fc455cc1ae3abb2ec1f87 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Mon, 20 Feb 2017 23:29:19 +0000
-Subject: [PATCH 6/8] Changed include to match freebsd's src
+Subject: [PATCH 6/9] Changed include to match freebsd's src
 
 ---
  include/uniqtype-defs.h | 2 +-
@@ -254,7 +254,7 @@ index 9302802..acf432a 100644
 From 2547d57c6f6757cff7e68bd9c286718cb31269c7 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Sat, 25 Feb 2017 00:51:57 +0000
-Subject: [PATCH 7/8] Fix for KTR breakages
+Subject: [PATCH 7/9] Fix for KTR breakages
 
 ---
  tools/allocscompilerwrapper.py | 47 +++++++++++++++++++++++++++++++++---------
@@ -325,7 +325,7 @@ index 3cf402c..1f19637 100644
 From f0affcfa47b68393178987015a9f010fb4823774 Mon Sep 17 00:00:00 2001
 From: Richard Tynan <richard@tynan.me>
 Date: Sat, 25 Mar 2017 09:40:48 +0000
-Subject: [PATCH 8/8] Fixed typo in blacklist
+Subject: [PATCH 8/9] Fixed typo in blacklist
 
 ---
  tools/allocscompilerwrapper.py | 50 +++++++++++++++++++++---------------------
@@ -392,6 +392,158 @@ index 1f19637..6bfa90c 100644
          ]
  
          self.debugMsg("Trying blacklist" + str(sourceInputFiles) + '\n')
+-- 
+2.9.0
+
+
+From c7f820f88cc29020f381eb3795171a1161cd8454 Mon Sep 17 00:00:00 2001
+From: Richard Tynan <richard@tynan.me>
+Date: Thu, 11 May 2017 14:08:31 +0100
+Subject: [PATCH 9/9] Various fixes
+
+---
+ tools/allocscompilerwrapper.py   | 13 +++++++++++++
+ tools/gather-srcallocs.sh        |  4 ++--
+ tools/lang/c/bin/link-used-types | 18 ++++++++++++++----
+ tools/used-types-funcs.sh        | 27 +++++++++++++++++++++++----
+ 4 files changed, 52 insertions(+), 10 deletions(-)
+
+diff --git a/tools/allocscompilerwrapper.py b/tools/allocscompilerwrapper.py
+index 6bfa90c..f003418 100644
+--- a/tools/allocscompilerwrapper.py
++++ b/tools/allocscompilerwrapper.py
+@@ -300,6 +300,19 @@ class AllocsCompilerWrapper(CompilerWrapper):
+             'xhci_pci.c',
+             'xlphy.c',
+             'xmphy.c',
++            # Our own files implementing libcrunch/liballocs, don't want to
++            # crunch these
++            'liballocs.c',
++            'libcrunch.c',
++            'index_tree.c',
++            'pageindex.c',
++            'generic_malloc.c',
++            'static.c',
++            'typesstack.c',
++            'types1.c',
++            'types2.c',
++            'types3.c',
++            'types4.c',
+         ]
+ 
+         self.debugMsg("Trying blacklist" + str(sourceInputFiles) + '\n')
+diff --git a/tools/gather-srcallocs.sh b/tools/gather-srcallocs.sh
+index 7b620ec..d7d682b 100755
+--- a/tools/gather-srcallocs.sh
++++ b/tools/gather-srcallocs.sh
+@@ -28,7 +28,7 @@ all_obj_allocs_file="$1"
+ 
+ # Do a per-CU loop over the file and dispatch to a per-language allocs-gatherer
+ 
+-cat "$all_obj_allocs_file" | cut -f1 | sort | uniq | while read obj rest; do
++cat "$all_obj_allocs_file" | cut -f1 | LC_ALL=C sort | uniq | while read obj rest; do
+     echo "Saw line $obj $rest" 1>&2
+     all_cus_info="$( get_cu_info "$obj" )"
+     
+@@ -42,4 +42,4 @@ cat "$all_obj_allocs_file" | cut -f1 | sort | uniq | while read obj rest; do
+             ;;
+         esac
+     done
+-done | pad_numbers | sort -t$'\t' -k1 -k2 | uniq        #use_src_realpaths | 
++done | pad_numbers | LC_ALL=C sort -t$'\t' -k1 -k2 | uniq        #use_src_realpaths | 
+diff --git a/tools/lang/c/bin/link-used-types b/tools/lang/c/bin/link-used-types
+index 1263ff5..907d492 100755
+--- a/tools/lang/c/bin/link-used-types
++++ b/tools/lang/c/bin/link-used-types
+@@ -1,6 +1,11 @@
+ #!/bin/bash
+ 
+-objfile="$1"
++if readelf -h $1; then
++	objfile="$1"
++else
++	objfile="/usr/obj/usr/src/sys/CRUNCHED/$(basename $1)"
++fi
++echo "OBJFILE IS $objfile"
+ 
+ test -n "$objfile" || (echo "Please specify an object file"; false) || exit 1
+ 
+@@ -40,20 +45,25 @@ sed -r 's/[[:blank:]]*[Uw][[:blank:]]*$//' | grep __uniqtype__ )"
+     fi
+ }
+ 
+-   # ${USEDTYPES} "$objfile" > "$usedtypes_src" && \
++   # touch "$usedtypes_src" && \
+    # rpt
+ echo ${USEDTYPES} "$objfile" 1>&2 # for debugging
+ (  objcopy_and_redefine_c_names "$objfile" && \
+    echo "Successfully did objcopy_and_redefine_c_names" 1>&2 && \
+    echo ${USEDTYPES} "$objfile" 1>&2 && \
+-   touch "$usedtypes_src" && \
++   ${USEDTYPES} "$objfile" > "$usedtypes_src" && \
++   sed -i 's/\.data\./.meta./g' "$usedtypes_src"  && \
+    echo "Successfully did usedtypes" 1>&2 && \
+    compile "$usedtypes_src" "$usedtypes_obj" && \
+    echo "Successfully did compile" 1>&2 && \
+    objcopy_and_redefine_codeless_names "$objfile" "$usedtypes_obj" && \
+    echo "Successfully did objcopy_and_redefine_codeless_names" 1>&2 && \
+    link_defining_aliases "$objfile" "$usedtypes_obj" && \
+-   echo "Successfully did link_defining_aliases" 1>&2 ) || \
++   echo "Successfully did link_defining_aliases" 1>&2 && \
++   objcopy_move_types_to_meta "$objfile" && \
++   echo "Successfully did objcopy_move_types_to_meta" 1>&2 && \
++   objcopy_weaken_void "$objfile" && \
++   echo "Successfully weakened __uniqtype__void* symbols" 1>&2 ) || \
+     (echo NOT REALLY rm -f "$objfile" 1>&2 ; exit 1)
+ 
+ # rm -f "$usedtypes_src" "$usedtypes_obj"
+diff --git a/tools/used-types-funcs.sh b/tools/used-types-funcs.sh
+index c3ed8e7..9c29c1f 100755
+--- a/tools/used-types-funcs.sh
++++ b/tools/used-types-funcs.sh
+@@ -29,8 +29,10 @@ compile () {
+    asm="$( mktemp )"
+    asm="$asm.s"
+    touch $asm
+-   ${CC} -S -x c -o "$asm" "$src" && \
+-   ${CC} -c -o "$dest" "$asm" && \
++   # ${CC} -S -x c -o "$asm" "$src" && \
++   # ${CC} -c -o "$dest" "$asm" && \
++   /usr/local/bin/gcc -S -x c -o "$asm" "$src" && \
++   /usr/local/bin/gcc -c -o "$dest" "$asm" && \
+    echo "Compiler generated $dest" 1>&2
+ }
+ 
+@@ -58,10 +60,27 @@ symbol_redefinitions () {
+ objcopy_and_redefine_codeless_names () {
+     our_objfile="$1"
+     our_usedtypes_obj="$2"
+-    
++
+     # now, fill in the codeful names for codeless ones
+-    second_redefinition_args="$( symbol_redefinitions "$our_usedtypes_obj" )" && \
++    second_redefinition_args="$( symbol_redefinitions  "$our_usedtypes_obj" )" && \
+     echo ${OBJCOPY} $second_redefinition_args "$our_objfile" 1>&2 && \
+     ${OBJCOPY} $second_redefinition_args "$our_objfile" && \
+     echo "objcopy renamed symbols in $our_objfile according to $second_redefinition_args" 1>&2
+ }
++
++# To prevent multiple definitions of uniqtype void errors
++objcopy_weaken_void () {
++	our_objfile="$1"
++	${OBJCOPY} --weaken-symbol=__uniqtype__void_subobj_names \
++		--weaken-symbol=__uniqtype__void "$our_objfile"
++}
++
++# Because types end up in .meta when the dumptypes are linked in, they should
++# be moved to .meta for the first build
++objcopy_move_types_to_meta () {
++    our_objfile="$1"
++	objdump -t "$our_objfile" | egrep "__uniqtype_[0-9a-f]{8}" \
++		| tr -s "[:blank:]" "\t" | cut -d '	' -f 6 \
++		| sed 's/^.\(.*\)/\n--rename-section \.data\.\1=\.meta\.\1/' \
++		| xargs -n 100 objcopy "$our_objfile"
++}
 -- 
 2.9.0
 
