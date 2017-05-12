@@ -36,7 +36,7 @@ struct insert *heapindex_lookup(const void *addr) {
 	const struct insert ins = {.addr = (void *)addr};
 	HEAPINDEX_RLOCK;
 	struct itree_node *res = itree_find_closest_under(
-		heapindex_root, &ins, heapindex_compare, heapindex_distance
+		&heapindex_root, heapindex_root, &ins, heapindex_compare, heapindex_distance
 	);
 	HEAPINDEX_UNLOCK;
 	// What if res->data is freed here?

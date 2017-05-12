@@ -46,6 +46,7 @@ void *itree_remove(
 );
 
 extern struct itree_node *itree_find(
+	struct itree_node **proot,
 	struct itree_node *root,
 	const void *to_find,
 	itree_compare_func compare
@@ -55,6 +56,7 @@ extern struct itree_node *itree_find(
  * present, the node which is less than the one to find and closest to it (kind
  * of like the predecessor) */
 extern struct itree_node *itree_find_closest_under(
+	struct itree_node **proot,
 	struct itree_node *root,
 	const void *to_find,
 	itree_compare_func compare,

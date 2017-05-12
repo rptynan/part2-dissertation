@@ -256,8 +256,8 @@ __liballocs_walk_subobjects_spanning_rec(
 	return ret;
 }
 
-/* extern inline int */
-int
+extern inline int
+/* int */
 /* __attribute__((always_inline,gnu_inline)) */
 __liballocs_walk_subobjects_spanning(
 	const signed target_offset_within_u,
@@ -527,7 +527,7 @@ allocsite_to_uniqtype(const void *allocsite)
 	const struct uniqtype_index_node to_find = {.site = allocsite};
 	TYPESINDEX_RLOCK;
 	const struct itree_node *res = itree_find(
-		uniqtype_index, &to_find, uniqtype_index_compare
+		&uniqtype_index, uniqtype_index, &to_find, uniqtype_index_compare
 	);
 	TYPESINDEX_UNLOCK;
 

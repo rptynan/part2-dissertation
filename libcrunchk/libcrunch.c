@@ -74,6 +74,8 @@ LIBCRUNCH_COUNTER(lazy_heap_type_assignment);
 LIBCRUNCH_COUNTER(failed_in_alloc);
 // custom
 LIBCRUNCH_COUNTER(failed_liballocs_err);
+LIBCRUNCH_COUNTER(called_before_init);
+LIBCRUNCH_COUNTER(splaying_on);
 
 
 /* Heap storage sized using a "loose" data type, like void*,
@@ -238,6 +240,7 @@ int __libcrunch_global_sysinit(void *unused)
 		atexit(print_exit_summary);
 	#endif
 	__libcrunch_is_initialized = 1;
+	printf("libcrunch successfully initialized\n");
 	PRINTD("libcrunch successfully initialized"); // lvl=1
 	return 0;
 }
@@ -254,6 +257,9 @@ __attribute__((constructor)) static void userspace_init() {
 }
 #endif
 
+int __libcrunch_global_init(void) {
+	return 1;
+}
 int __libcrunch_check_init(void)
 {
 	return __libcrunch_is_initialized;
@@ -384,7 +390,10 @@ int __is_a_internal(const void *obj, const void *arg)
 
 	/* We might not be initialized yet (recall that __libcrunch_global_init is 
 	 * not a constructor, because it's not safe to call super-early). */
-	if (!__libcrunch_check_init()) return 1;
+	if (!__libcrunch_check_init()) {
+		__libcrunch_called_before_init++;
+		return 1;
+	}
 	
 	const struct uniqtype *test_uniqtype = (const struct uniqtype *) arg;
 	struct allocator *a = NULL;
@@ -602,7 +611,10 @@ int __like_a_internal(const void *obj, const void *arg)
 	
 	/* We might not be initialized yet (recall that __libcrunch_global_init is 
 	 * not a constructor, because it's not safe to call super-early). */
-	__libcrunch_check_init();
+	if (!__libcrunch_check_init()) {
+		__libcrunch_called_before_init++;
+		return 1;
+	}
 	
 	const struct uniqtype *test_uniqtype = (const struct uniqtype *) arg;
 	struct allocator *a;
@@ -780,7 +792,10 @@ int __loosely_like_a_internal(const void *obj, const void *arg)
 	PRINTD("__loosely_like_a_internal");
 	/* We might not be initialized yet (recall that __libcrunch_global_init is 
 	 * not a constructor, because it's not safe to call super-early). */
-	if (!__libcrunch_check_init()) return 1;
+	if (!__libcrunch_check_init()) {
+		__libcrunch_called_before_init++;
+		return 1;
+	}
 	
 	struct uniqtype *test_uniqtype = (struct uniqtype *) arg;
 	struct allocator *a;
@@ -1024,7 +1039,10 @@ int __named_a_internal(const void *obj, const void *r)
 int __check_args_internal(const void *obj, int nargs, ...)
 {
 	PRINTD("__check_args_internal");
-	if (!__libcrunch_check_init()) return 1;
+	if (!__libcrunch_check_init()) {
+		__libcrunch_called_before_init++;
+		return 1;
+	}
 
 	struct allocator *a;
 	const void *alloc_start;
@@ -1107,7 +1125,10 @@ int __is_a_function_refining_internal(const void *obj, const void *arg)
 	PRINTD("__is_a_function_refining_internal");
 	/* We might not be initialized yet (recall that __libcrunch_global_init is 
 	 * not a constructor, because it's not safe to call super-early). */
-	if (!__libcrunch_check_init()) return 1;
+	if (!__libcrunch_check_init()) {
+		__libcrunch_called_before_init++;
+		return 1;
+	}
 	
 	const struct uniqtype *test_uniqtype = (const struct uniqtype *) arg;
 	struct allocator *a = NULL;
@@ -1349,7 +1370,10 @@ int __can_hold_pointer_internal(const void *obj, const void *value)
 	PRINTD2("__can_hold_pointer_internal: obj: %p, value: %p", obj, value);
 	/* We might not be initialized yet (recall that __libcrunch_global_init is 
 	 * not a constructor, because it's not safe to call super-early). */
-	if (!__libcrunch_check_init()) return 1;
+	if (!__libcrunch_check_init()) {
+		__libcrunch_called_before_init++;
+		return 1;
+	}
 
 	/* To hold a pointer, we must be a pointer. Find the pointer subobject at `obj'. */
 	struct allocator *obj_a = NULL;

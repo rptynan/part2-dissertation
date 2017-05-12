@@ -10,6 +10,11 @@ MALLOC_DEFINE(
 );
 #endif
 
+static inline void itree_splay(
+	struct itree_node **proot,
+	struct itree_node *x
+);
+
 
 void itree_insert(
 	struct itree_node **rootp,
@@ -49,6 +54,7 @@ void itree_insert(
 	else {
 		PRINTD("Failed to allocate itree_node!");
 	}
+	itree_splay(rootp, root);
 }
 
 
@@ -92,7 +98,7 @@ void *itree_remove(
 	void *to_remove,
 	itree_compare_func compare
 ) {
-	struct itree_node *r_node = itree_find(*proot, to_remove, compare);
+	struct itree_node *r_node = itree_find(proot, *proot, to_remove, compare);
 	if (!r_node) return NULL;
 
 	// Easy case, only one child (or none)
@@ -140,13 +146,17 @@ void *itree_remove(
 
 
 struct itree_node *itree_find(
+	struct itree_node **proot,
 	struct itree_node *root,
 	const void *to_find,
 	itree_compare_func compare
 ) {
 	if (!root) return NULL;
 	while (root) {
-		if (compare(to_find, root->data) == 0) return root;
+		if (compare(to_find, root->data) == 0) {
+			itree_splay(proot, root);
+			return root;
+		}
 		else if (compare(to_find, root->data) < 0) {  // <
 			root = root->left;
 		}
@@ -159,6 +169,7 @@ struct itree_node *itree_find(
 
 
 extern struct itree_node *itree_find_closest_under(
+	struct itree_node **proot,
 	struct itree_node *root,
 	const void *to_find,
 	itree_compare_func compare,
@@ -172,7 +183,10 @@ extern struct itree_node *itree_find_closest_under(
 	struct itree_node *closest_node = itree_get_min(root, compare);
 	unsigned long min_distance = distance(closest_node->data, to_find);
 	while (root) {
-		if (compare(to_find, root->data) == 0) return root;
+		if (compare(to_find, root->data) == 0) {
+			itree_splay(proot, root);
+			return root;
+		}
 		else if (compare(to_find, root->data) < 0) {  // <
 			// to_find is less than, so try find something smaller
 			root = root->left;
@@ -203,3 +217,65 @@ void itree_inorder_traverse(
 	itree_inorder_traverse(root->right, func, depth + 1);
 }
 
+/* Below is from https://en.wikipedia.org/wiki/Splay_tree */
+
+static inline void itree_left_rotate(
+	struct itree_node **proot,
+	struct itree_node *x
+) {
+	struct itree_node *y = x->right;
+	if(y) {
+		x->right = y->left;
+		if( y->left ) y->left->parent = x;
+		y->parent = x->parent;
+	}
+
+	if( !x->parent ) *proot = y;
+	else if( x == x->parent->left ) x->parent->left = y;
+	else x->parent->right = y;
+	if(y) y->left = x;
+	x->parent = y;
+}
+
+static inline void itree_right_rotate(
+	struct itree_node **proot,
+	struct itree_node *x
+) {
+	struct itree_node *y = x->left;
+	if(y) {
+		x->left = y->right;
+		if( y->right ) y->right->parent = x;
+		y->parent = x->parent;
+	}
+	if( !x->parent ) *proot = y;
+	else if( x == x->parent->left ) x->parent->left = y;
+	else x->parent->right = y;
+	if(y) y->right = x;
+	x->parent = y;
+}
+
+extern unsigned long int __libcrunch_splaying_on;
+static inline void itree_splay(
+	struct itree_node **proot,
+	struct itree_node *x
+) {
+	if (!__libcrunch_splaying_on) return;
+	while( x->parent ) {
+		if( !x->parent->parent ) {
+			if( x->parent->left == x ) itree_right_rotate(proot, x->parent);
+			else itree_left_rotate(proot, x->parent);
+		} else if( x->parent->left == x && x->parent->parent->left == x->parent ) {
+			itree_right_rotate(proot, x->parent->parent);
+			itree_right_rotate(proot, x->parent);
+		} else if( x->parent->right == x && x->parent->parent->right == x->parent ) {
+			itree_left_rotate(proot, x->parent->parent);
+			itree_left_rotate(proot, x->parent);
+		} else if( x->parent->left == x && x->parent->parent->right == x->parent ) {
+			itree_right_rotate(proot, x->parent);
+			itree_left_rotate(proot, x->parent);
+		} else {
+			itree_left_rotate(proot, x->parent);
+			itree_right_rotate(proot, x->parent);
+		}
+	}
+}

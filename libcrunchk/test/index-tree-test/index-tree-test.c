@@ -58,7 +58,7 @@ void test_find_closest_under() {
 			for (; !is_inserted(i + j + 1) && i + j < TEST_RANGE; j++);
 			struct my_data q;
 			q.x = i + j;
-			assert(((struct my_data *) itree_find_closest_under(root, &q, my_compare, my_distance)->data)->x == i);
+			assert(((struct my_data *) itree_find_closest_under(&root, root, &q, my_compare, my_distance)->data)->x == i);
 		}
 	}
 	printf("test_find_closest_under passed\n");
@@ -69,7 +69,7 @@ void test_find() {
 		if (is_inserted(i)) {
 			struct my_data q;
 			q.x = i;
-			assert(((struct my_data *) itree_find(root, &q, my_compare)->data)->x == i);
+			assert(((struct my_data *) itree_find(&root, root, &q, my_compare)->data)->x == i);
 		}
 	}
 	printf("test_find passed\n");

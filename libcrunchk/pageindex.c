@@ -30,7 +30,7 @@ static inline struct big_allocation* pageindex_lookup(const void *begin) {
 	const struct big_allocation b = {.begin = (void *)begin};
 	PAGEINDEX_RLOCK;
 	struct itree_node *r = itree_find_closest_under(
-		pageindex_root, &b, pageindex_compare, pageindex_distance
+		&pageindex_root, pageindex_root, &b, pageindex_compare, pageindex_distance
 	);
 	struct big_allocation *res = (struct big_allocation *) r ? r->data : NULL;
 
