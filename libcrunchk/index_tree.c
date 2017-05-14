@@ -50,11 +50,11 @@ void itree_insert(
 		root->right = NULL;
 		if (parent_link) *parent_link = root;
 		if (!*rootp) *rootp = root;
+		itree_splay(rootp, root);
 	}
 	else {
 		PRINTD("Failed to allocate itree_node!");
 	}
-	itree_splay(rootp, root);
 }
 
 
@@ -100,6 +100,7 @@ void *itree_remove(
 ) {
 	struct itree_node *r_node = itree_find(proot, *proot, to_remove, compare);
 	if (!r_node) return NULL;
+	itree_splay(proot, r_node);
 
 	// Easy case, only one child (or none)
 	if (!r_node->left || !r_node->right) {
@@ -158,12 +159,15 @@ struct itree_node *itree_find(
 			return root;
 		}
 		else if (compare(to_find, root->data) < 0) {  // <
+			if (!root->left) break;
 			root = root->left;
 		}
 		else {  // >
+			if (!root->right) break;
 			root = root->right;
 		}
 	}
+	if (root) itree_splay(proot, root);
 	return NULL;
 }
 
@@ -201,6 +205,7 @@ extern struct itree_node *itree_find_closest_under(
 			root = root->right;
 		}
 	}
+	if (closest_node) itree_splay(proot, closest_node);
 	return closest_node;
 }
 
@@ -254,7 +259,6 @@ static inline void itree_right_rotate(
 	x->parent = y;
 }
 
-extern unsigned long int __libcrunch_splaying_on;
 static inline void itree_splay(
 	struct itree_node **proot,
 	struct itree_node *x
