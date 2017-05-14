@@ -1,9 +1,13 @@
+#include <libcrunchk/include/liballocs.h>
 #include <libcrunchk/include/pageindex.h>
 #include <libcrunchk/include/index_tree.h>
 
 // TODO
 #define BIG_LOCK
 #define BIG_UNLOCK
+
+// This is amd64 specific
+extern void *bootstacks[MAXCPU];
 
 /* index_tree wrapper functions */
 struct itree_node *pageindex_root = NULL;
@@ -54,6 +58,8 @@ void pageindex_insert(
 	b->begin = begin;
 	b->end = end;
 	b->allocated_by = allocated_by;
+
+	__libcrunch_pageindex_entries++;
 	PAGEINDEX_WLOCK;
 	itree_insert(&pageindex_root, (void *)b, pageindex_compare);
 	PAGEINDEX_UNLOCK;
@@ -62,6 +68,7 @@ void pageindex_insert(
 void pageindex_remove(void *begin) {
 	PRINTD1("pageindex_remove: %p", begin);
 	struct big_allocation b = {.begin = begin};
+	__libcrunch_pageindex_entries--;
 	PAGEINDEX_WLOCK;
 	void *free_me = itree_remove(
 		&pageindex_root, (void *)&b, pageindex_compare
@@ -70,7 +77,6 @@ void pageindex_remove(void *begin) {
 	if (free_me) __real_free(free_me, M_TEMP);
 }
 
-
 extern inline
 struct allocator *(/*__attribute__((always_inline,gnu_inline))*/
 __liballocs_leaf_allocator_for) (
@@ -78,6 +84,19 @@ __liballocs_leaf_allocator_for) (
 	struct big_allocation **out_containing_bigalloc,  // unused?
 	struct big_allocation **out_maybe_the_allocation
 ) {
+	#ifdef _KERNEL
+	// Check if it's potentially in stack first, so we don't search through
+	// index for no reason
+	for (int cpu = 0; cpu < MAXCPU; cpu++) {
+		if (bootstacks[cpu] <= obj
+			&& obj <= bootstacks[cpu] + KSTACK_PAGES * PAGE_SIZE
+		) {
+			__liballocs_aborted_stack++;
+			return NULL;
+		}
+	}
+	#endif
+
 	struct big_allocation *res = pageindex_lookup(obj);
 	if (out_maybe_the_allocation) *out_maybe_the_allocation = res;
 	if (res) return res->allocated_by;
