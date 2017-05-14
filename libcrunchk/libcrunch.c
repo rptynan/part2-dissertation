@@ -82,6 +82,11 @@ LIBCRUNCH_COUNTER(malloc_entries);
 LIBCRUNCH_COUNTER(static_entries);
 
 
+/* Mutexes */
+struct mtx pageindex_mutex;
+struct mtx heapindex_mutex;
+
+
 /* Heap storage sized using a "loose" data type, like void*,
  * is marked as loose, and becomes non-loose when a cast to a non-loose type.
  * Annoyingly, liballocs eagerly replaces alloc site info with uniqtype
@@ -197,10 +202,6 @@ void __libcrunch_scan_lazy_typenames(void *blah)
 	PRINTD("__libcrunch_scan_lazy_typenames");
 }
 
-struct mtx pageindex_mutex;
-struct rwlock pageindex_rwlock;
-struct rwlock heapindex_rwlock;
-struct rwlock typesindex_rwlock;
 int __libcrunch_global_sysinit(void *unused)
 {
 	PRINTD("__libcrunch_global_sysinit");

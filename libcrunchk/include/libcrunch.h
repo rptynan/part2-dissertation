@@ -56,61 +56,44 @@ void *__real_malloc(unsigned long size, struct malloc_type *type, int flags);
 #endif
 
 /* All the locks */
+/* pageindex */
 #ifdef _KERNEL
-
-/* extern struct rwlock pageindex_rwlock; */
-/* #define PAGEINDEX_RLOCK \ */
-/* 	if (!rw_initialized(&pageindex_rwlock)) \ */
-/* 		rw_init(&pageindex_rwlock, "pageindex_lock"); \ */
-/* 	rw_rlock(&pageindex_rwlock) */
-/* #define PAGEINDEX_WLOCK \ */
-/* 	if (!rw_initialized(&pageindex_rwlock)) \ */
-/* 		rw_init(&pageindex_rwlock, "pageindex_lock"); \ */
-/* 	rw_wlock(&pageindex_rwlock) */
-/* #define PAGEINDEX_UNLOCK rw_unlock(&pageindex_rwlock) */
-
-extern struct mtx pageindex_mutex;
-#define PAGEINDEX_RLOCK \
+  extern struct mtx pageindex_mutex;
+  #define PAGEINDEX_RLOCK \
 	if (!mtx_initialized(&pageindex_mutex)) \
 		mtx_init(&pageindex_mutex, "pageindex_lock", NULL, MTX_SPIN); \
 	mtx_lock_spin(&pageindex_mutex)
-#define PAGEINDEX_WLOCK \
+  #define PAGEINDEX_WLOCK \
 	if (!mtx_initialized(&pageindex_mutex)) \
 		mtx_init(&pageindex_mutex, "pageindex_lock", NULL, MTX_SPIN); \
 	mtx_lock_spin(&pageindex_mutex)
-#define PAGEINDEX_UNLOCK mtx_unlock_spin(&pageindex_mutex)
-
+  #define PAGEINDEX_UNLOCK mtx_unlock_spin(&pageindex_mutex)
 #else
-#define PAGEINDEX_RLOCK
-#define PAGEINDEX_WLOCK
-#define PAGEINDEX_UNLOCK
+  #define PAGEINDEX_RLOCK
+  #define PAGEINDEX_WLOCK
+  #define PAGEINDEX_UNLOCK
 #endif
-extern struct rwlock heapindex_rwlock;
-/* #define HEAPINDEX_RLOCK \ */
-/* 	if (!rw_initialized(&heapindex_rwlock)) \ */
-/* 		rw_init(&heapindex_rwlock, "heapindex_lock"); \ */
-/* 	rw_rlock(&heapindex_rwlock) */
-/* #define HEAPINDEX_WLOCK \ */
-/* 	if (!rw_initialized(&heapindex_rwlock)) \ */
-/* 		rw_init(&heapindex_rwlock, "heapindex_lock"); \ */
-/* 	rw_wlock(&heapindex_rwlock) */
-/* #define HEAPINDEX_UNLOCK rw_unlock(&heapindex_rwlock) */
-#define HEAPINDEX_RLOCK
-#define HEAPINDEX_WLOCK
-#define HEAPINDEX_UNLOCK
-extern struct rwlock typesindex_rwlock;
-/* #define TYPESINDEX_RLOCK \ */
-/* 	if (!rw_initialized(&typesindex_rwlock)) \ */
-/* 		rw_init(&typesindex_rwlock, "typesindex_lock"); \ */
-/* 	rw_rlock(&typesindex_rwlock) */
-/* #define TYPESINDEX_WLOCK \ */
-/* 	if (!rw_initialized(&typesindex_rwlock)) \ */
-/* 		rw_init(&typesindex_rwlock, "typesindex_lock"); \ */
-/* 	rw_wlock(&typesindex_rwlock) */
-/* #define TYPESINDEX_UNLOCK rw_unlock(&typesindex_rwlock) */
-#define TYPESINDEX_RLOCK
-#define TYPESINDEX_WLOCK
-#define TYPESINDEX_UNLOCK
+/* heapindex */
+#ifdef _KERNEL
+  extern struct mtx heapindex_mutex;
+  #define HEAPINDEX_RLOCK \
+	if (!mtx_initialized(&heapindex_mutex)) \
+		mtx_init(&heapindex_mutex, "heapindex_lock", NULL, MTX_SPIN); \
+	mtx_lock_spin(&heapindex_mutex)
+  #define HEAPINDEX_WLOCK \
+	if (!mtx_initialized(&heapindex_mutex)) \
+		mtx_init(&heapindex_mutex, "heapindex_lock", NULL, MTX_SPIN); \
+	mtx_lock_spin(&heapindex_mutex)
+  #define HEAPINDEX_UNLOCK mtx_unlock_spin(&heapindex_mutex)
+#else
+  #define HEAPINDEX_RLOCK
+  #define HEAPINDEX_WLOCK
+  #define HEAPINDEX_UNLOCK
+#endif
+/* typesindex */
+#define TYPESINDEX_RLOCK PAGEINDEX_RLOCK
+#define TYPESINDEX_WLOCK PAGEINDEX_WLOCK
+#define TYPESINDEX_UNLOCK PAGEINDEX_UNLOCK
 
 extern unsigned long int __libcrunch_failed_liballocs_err;
 extern unsigned long int __libcrunch_called_before_init;
