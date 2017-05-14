@@ -1,9 +1,42 @@
-#include <libcrunchk/include/pageindex.h>
+#include <libcrunchk/include/index_tree.h>
 #include <libcrunchk/include/liballocs.h>
 #include <sys/stddef.h>
 
 static _Bool trying_to_initialize = 0;
 static _Bool initialized = 0;
+
+struct itree_node *staticindex_root = NULL;
+
+extern int heapindex_compare(const void *a, const void *b);
+extern unsigned long heapindex_distance(const void *a, const void *b);
+
+struct insert *staticindex_lookup(const void *addr) {
+	const struct insert ins = {.addr = (void *)addr};
+	HEAPINDEX_RLOCK;
+	struct itree_node *res = itree_find_closest_under(
+		&staticindex_root, staticindex_root, &ins, heapindex_compare, heapindex_distance
+	);
+	HEAPINDEX_UNLOCK;
+	// What if res->data is freed here?
+	if (res) return (struct insert *) res->data;
+	return NULL;
+}
+
+void staticindex_insert(
+	void *alloc_site,
+	void *addr,
+	_Bool alloc_site_is_actually_uniqtype
+) {
+	struct insert *ins =
+		__real_malloc(sizeof(struct insert), M_TEMP, M_WAITOK);
+	ins->alloc_site_flag = alloc_site_is_actually_uniqtype;
+	ins->alloc_site = (unsigned long) alloc_site;
+	ins->addr = addr;
+	__libcrunch_static_entries++;
+	HEAPINDEX_WLOCK;
+	itree_insert(&staticindex_root, (void *)ins, heapindex_compare);
+	HEAPINDEX_UNLOCK;
+}
 
 /* To make sure .meta exists even if types*.c not included in build */
 int __attribute__((section (".meta"))) make_sure_dot_meta_exists = 42;
@@ -100,8 +133,7 @@ static void offset_all_statics ()
 			&__static_allocator
 		);
 
-		// We piggyback on heapindex, set flag because we have uniqtype
-		heapindex_insert(
+		staticindex_insert(
 			s->entry.uniqtype,
 			s->entry.allocsite,
 			1
@@ -125,7 +157,7 @@ void __static_allocator_init(void)
 
 struct uniqtype *
 static_addr_to_uniqtype(const void *static_addr, void **out_object_start) {
-	struct insert *ins = heapindex_lookup(static_addr);
+	struct insert *ins = staticindex_lookup(static_addr);
 	if (!ins) return NULL;
 	if (!ins->alloc_site_flag) {
 		// something went wrong, we should only get straight uniqtypes back
