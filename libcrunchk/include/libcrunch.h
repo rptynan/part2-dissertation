@@ -6,6 +6,7 @@
 #include <sys/param.h>
 #include <sys/lock.h>
 #include <sys/rwlock.h>
+#include <sys/mutex.h>
 
 #ifndef NULL
 #define NULL 0
@@ -56,16 +57,29 @@ void *__real_malloc(unsigned long size, struct malloc_type *type, int flags);
 
 /* All the locks */
 #ifdef _KERNEL
-extern struct rwlock pageindex_rwlock;
+
+/* extern struct rwlock pageindex_rwlock; */
+/* #define PAGEINDEX_RLOCK \ */
+/* 	if (!rw_initialized(&pageindex_rwlock)) \ */
+/* 		rw_init(&pageindex_rwlock, "pageindex_lock"); \ */
+/* 	rw_rlock(&pageindex_rwlock) */
+/* #define PAGEINDEX_WLOCK \ */
+/* 	if (!rw_initialized(&pageindex_rwlock)) \ */
+/* 		rw_init(&pageindex_rwlock, "pageindex_lock"); \ */
+/* 	rw_wlock(&pageindex_rwlock) */
+/* #define PAGEINDEX_UNLOCK rw_unlock(&pageindex_rwlock) */
+
+extern struct mtx pageindex_mutex;
 #define PAGEINDEX_RLOCK \
-	if (!rw_initialized(&pageindex_rwlock)) \
-		rw_init(&pageindex_rwlock, "pageindex_lock"); \
-	rw_rlock(&pageindex_rwlock)
+	if (!mtx_initialized(&pageindex_mutex)) \
+		mtx_init(&pageindex_mutex, "pageindex_lock", NULL, MTX_SPIN); \
+	mtx_lock_spin(&pageindex_mutex)
 #define PAGEINDEX_WLOCK \
-	if (!rw_initialized(&pageindex_rwlock)) \
-		rw_init(&pageindex_rwlock, "pageindex_lock"); \
-	rw_wlock(&pageindex_rwlock)
-#define PAGEINDEX_UNLOCK rw_unlock(&pageindex_rwlock)
+	if (!mtx_initialized(&pageindex_mutex)) \
+		mtx_init(&pageindex_mutex, "pageindex_lock", NULL, MTX_SPIN); \
+	mtx_lock_spin(&pageindex_mutex)
+#define PAGEINDEX_UNLOCK mtx_unlock_spin(&pageindex_mutex)
+
 #else
 #define PAGEINDEX_RLOCK
 #define PAGEINDEX_WLOCK
@@ -97,4 +111,13 @@ extern struct rwlock typesindex_rwlock;
 #define TYPESINDEX_RLOCK
 #define TYPESINDEX_WLOCK
 #define TYPESINDEX_UNLOCK
+
+extern unsigned long int __libcrunch_failed_liballocs_err;
+extern unsigned long int __libcrunch_called_before_init;
+extern unsigned long int __libcrunch_splaying_on;
+extern unsigned long int __libcrunch_pageindex_entries;
+extern unsigned long int __libcrunch_uniqtype_entries;
+extern unsigned long int __libcrunch_malloc_entries;
+extern unsigned long int __libcrunch_static_entries;
+
 #endif /* LIBCRUNCH_H */

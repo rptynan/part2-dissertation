@@ -75,7 +75,11 @@ LIBCRUNCH_COUNTER(failed_in_alloc);
 // custom
 LIBCRUNCH_COUNTER(failed_liballocs_err);
 LIBCRUNCH_COUNTER(called_before_init);
-LIBCRUNCH_COUNTER(splaying_on);
+LIBCRUNCH_COUNTER(splaying_on);  // set to 1 on init
+LIBCRUNCH_COUNTER(pageindex_entries);
+LIBCRUNCH_COUNTER(uniqtype_entries);
+LIBCRUNCH_COUNTER(malloc_entries);
+LIBCRUNCH_COUNTER(static_entries);
 
 
 /* Heap storage sized using a "loose" data type, like void*,
@@ -193,6 +197,7 @@ void __libcrunch_scan_lazy_typenames(void *blah)
 	PRINTD("__libcrunch_scan_lazy_typenames");
 }
 
+struct mtx pageindex_mutex;
 struct rwlock pageindex_rwlock;
 struct rwlock heapindex_rwlock;
 struct rwlock typesindex_rwlock;
@@ -210,6 +215,8 @@ int __libcrunch_global_sysinit(void *unused)
 	static _Bool tried_to_initialize;
 	if (tried_to_initialize) return -1;
 	tried_to_initialize = 1;
+
+	__libcrunch_splaying_on = 1;
 	
 	// we must have initialized liballocs
 	__liballocs_ensure_init();

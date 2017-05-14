@@ -54,6 +54,7 @@ void heapindex_insert(
 	ins->alloc_site_flag = alloc_site_is_actually_uniqtype;
 	ins->alloc_site = (unsigned long) alloc_site;
 	ins->addr = addr;
+	__libcrunch_malloc_entries++;
 	HEAPINDEX_WLOCK;
 	itree_insert(&heapindex_root, (void *)ins, heapindex_compare);
 	HEAPINDEX_UNLOCK;
@@ -61,6 +62,7 @@ void heapindex_insert(
 
 void heapindex_remove(void *addr) {
 	struct insert ins = {.addr = addr};
+	__libcrunch_malloc_entries--;
 	HEAPINDEX_WLOCK;
 	void *free_me = itree_remove(
 		&heapindex_root, (void *)&ins, heapindex_compare

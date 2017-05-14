@@ -514,6 +514,7 @@ void __liballocs_notify_unset_type(
 	);
 	node->site = alloc_site;
 	node->type = test_uniqtype;
+	__libcrunch_uniqtype_entries++;
 	TYPESINDEX_WLOCK;
 	itree_insert(&uniqtype_index, node, uniqtype_index_compare);
 	TYPESINDEX_UNLOCK;
