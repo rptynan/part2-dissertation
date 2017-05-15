@@ -1,0 +1,25 @@
+oids cleared!
+sysbench 0.4.12:  multi-threaded system evaluation benchmark
+
+Running the test with following options:
+Number of threads: 512
+
+Doing mutex performance test
+Threads started!
+Done.
+
+
+Test execution summary:
+    total time:                          7.0178s
+    total number of events:              512
+    total time taken by event execution: 2333.7765
+    per-request statistics:
+         min:                               1730.65ms
+         avg:                               4558.16ms
+         max:                               6975.70ms
+         approx.  95 percentile:            6435.73ms
+
+Threads fairness:
+    events (avg/stddev):           1.0000/0.00
+    execution time (avg/stddev):   4.5582/1.29
+
