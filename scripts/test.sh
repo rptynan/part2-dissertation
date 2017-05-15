@@ -18,12 +18,9 @@ function dotest() {
 	sysctl -a debug.liballocs debug.libcrunch
 }
 
+size=32G
 function dofiletest() {
-	# size=64G
-	size=1G
-	sysbench --test=fileio --file-total-size=$size prepare
-	dotest "sysbench --test=fileio --file-total-size=$size --file-test-mode=rndrw run"
-	sysbench --test=fileio --file-total-size=$size cleanup
+	dotest "sysbench --test=fileio --init-rng=on --file-total-size=$size --file-test-mode=rndrw --max-time=180s run"
 }
 
 function docputest() {
@@ -31,20 +28,20 @@ function docputest() {
 }
 
 function dothreadstest() {
-	dotest "sysbench --test=threads --num-threads=2 --thread-locks=2 run"
+	dotest "sysbench --test=threads --num-threads=4 --thread-locks=2 run"
 }
 
 function domutextest() {
-	dotest "sysbench --test=mutex --num-threads=256 run"
+	dotest "sysbench --test=mutex --num-threads=512 run"
 }
 
 function domemorytest() {
-	dotest "sysbench --test=memory --num-threads=4 run"
+	dotest "sysbench --test=memory --memory-total-size=16G --num-threads=4 run"
 }
 
 
 
-USAGE="./test.sh <output_name> <num_iterations>"
+USAGE="./test.sh <output_name> <num_iterations> <prepare or cleanup files>"
 
 if [ -z $1 ]; then
 	echo "You must specify a name for this test"
@@ -57,6 +54,17 @@ if [ -z $2 ]; then
 	echo $USAGE
 	exit
 fi
+
+if [[ "$3" == "prepare" ]]; then
+	echo "Preparing files for fileio test"
+	sysbench --test=fileio --file-total-size=$size prepare
+	exit
+elif [[ "$3" == "cleanup" ]]; then
+	echo "Cleaning up fileio test files"
+	sysbench --test=fileio --file-total-size=$size cleanup
+	exit
+fi
+
 
 timestamp=$(date +"%Y%m%d-%H%M")
 output_dir="$1-$timestamp"
