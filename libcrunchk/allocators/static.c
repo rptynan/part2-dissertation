@@ -120,7 +120,10 @@ static void offset_all_statics ()
 		if (strcmp_private(s->name, "mtxpool_sleep") == 0) {
 			dot_bss_offset = (void *)&mtxpool_sleep - s->entry.allocsite;
 		}
-	} while(s++ && (!dot_text_offset || !dot_data_offset || !dot_bss_offset));
+	} while(s++
+		&& (!dot_text_offset || !dot_data_offset || !dot_bss_offset)
+		&& s->entry.allocsite && s->entry.uniqtype
+	);
 	printf("dot_text_offset: %p\n", dot_text_offset);
 	printf("dot_data_offset: %p\n", dot_data_offset);
 	printf("dot_bss_offset: %p\n", dot_bss_offset);

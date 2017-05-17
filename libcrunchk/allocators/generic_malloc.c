@@ -7,6 +7,11 @@
 #define EXTRA_INSERT_SPACE 0
 #endif
 
+#ifndef true
+#define true 1
+#endif
+
+
 /* from heap_index.h */
 #define INSERT_DESCRIBES_OBJECT(ins) (!((ins)->alloc_site) )
 	/* || (char*)((uintptr_t)((unsigned long long)((ins)->alloc_site))) >= MINIMUM_USER_ADDRESS)
@@ -222,7 +227,7 @@ void *__wrap_malloc(unsigned long size, struct malloc_type *mtp, int flags)
 	ret = __real_malloc(size, mtp, flags);
 	if (ret) {
 		void *caller = __builtin_return_address(1);
-		if (flags & M_WAITOK) {
+		if (true || flags & M_WAITOK) {
 			PRINTD("malloc inserting to indices");
 			flush_malloc_buffer();
 		/* 	// TODO we're ignoring M_NOWAITs for now because itree can't do a */
@@ -271,7 +276,7 @@ void *__wrap_realloc(
 	/* void *ret = __real_realloc(addr, size, mtp, flags); */
 	void *ret = newaddr;
 	if (ret) {
-		if (flags & M_WAITOK) {
+		if (true || flags & M_WAITOK) {
 			flush_malloc_buffer();
 			// realloc changed the address and/or size, so we need to update
 			// ours but keep old alloc site! Not sure if this is correct,
@@ -311,7 +316,7 @@ void *__wrap_reallocf(
 	void *ret = __real_reallocf(addr, size, mtp, flags);
 	/* return ret; */
 	if (ret) {
-		if (flags & M_WAITOK) {
+		if (true || flags & M_WAITOK) {
 			// realloc changed the address and/or size, so we need to update ours
 			// but keep old alloc site! Not sure if this is correct, but...
 			// remove old
@@ -341,7 +346,7 @@ void *__wrap_reallocf(
 	}
 	else {
 		// realloc has freed addr, so we need to remove our entries
-		if (flags & M_WAITOK) {
+		if (true || flags & M_WAITOK) {
 			pageindex_remove(addr);
 			heapindex_remove(addr);
 		}

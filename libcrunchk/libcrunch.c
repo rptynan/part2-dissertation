@@ -387,12 +387,25 @@ reinstate_looseness_if_necessary(
 }
 
 
+#ifdef _KERNEL
 extern struct uniqtype __uniqtype__mtx;
 extern struct uniqtype __uniqtype__rwlock;
 extern struct uniqtype __uniqtype__iovec;
 extern struct uniqtype __uniqtype__uio;
 extern struct uniqtype __uniqtype__int$32;
 extern struct uniqtype __uniqtype__unsigned_int;
+extern struct uniqtype __uniqtype____ARR64_tdq;
+extern struct uniqtype __uniqtype____ARR64_rwlock;
+#else
+struct uniqtype __uniqtype__mtx;
+struct uniqtype __uniqtype__rwlock;
+struct uniqtype __uniqtype__iovec;
+struct uniqtype __uniqtype__uio;
+struct uniqtype __uniqtype__int$32;
+struct uniqtype __uniqtype__unsigned_int;
+struct uniqtype __uniqtype____ARR64_tdq;
+struct uniqtype __uniqtype____ARR64_rwlock;
+#endif
 int __is_a_internal(const void *obj, const void *arg)
 {
 	PRINTD("__is_a_internal");
@@ -401,10 +414,16 @@ int __is_a_internal(const void *obj, const void *arg)
 		obj
 	);
 
+
 	// HACK, hardcoded like_a for certain types
 	if (arg == &__uniqtype__mtx
 		|| arg == &__uniqtype__rwlock
 	) {
+		// HACK, this causes way too many failures
+		if (arg == &__uniqtype____ARR64_tdq
+			|| arg == &__uniqtype____ARR64_rwlock) {
+			return 1;
+		}
 		return __like_a_internal(obj, arg);
 	}
 
@@ -536,9 +555,11 @@ int __is_a_internal(const void *obj, const void *arg)
 	}
 	
 	// HACK this happens a lot because of atomic int, so ignore failure here
+	// Scratch that, so many things cast to uint, why
 	// Also uio and iovec get cast between a lot, particularly in vn_io_fault1()
-	if ((alloc_uniqtype == &__uniqtype__int$32
-		&& test_uniqtype == &__uniqtype__unsigned_int)
+	if (//(alloc_uniqtype == &__uniqtype__int$32
+		//&& test_uniqtype == &__uniqtype__unsigned_int)
+		test_uniqtype == &__uniqtype__unsigned_int
 		|| test_uniqtype == &__uniqtype__uio
 		|| test_uniqtype == &__uniqtype__iovec
 	) {
@@ -809,6 +830,10 @@ like_a_failed:
 					"%s originating at %p",
 					NAME_FOR_UNIQTYPE(alloc_uniqtype),
 					alloc_site
+				);
+				PRINTD1(
+					"alloc type of %p",
+					alloc_uniqtype
 				);
 			}
 		}
