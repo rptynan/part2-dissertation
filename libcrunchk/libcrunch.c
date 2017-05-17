@@ -387,7 +387,12 @@ reinstate_looseness_if_necessary(
 }
 
 
-
+extern struct uniqtype __uniqtype__mtx;
+extern struct uniqtype __uniqtype__rwlock;
+extern struct uniqtype __uniqtype__iovec;
+extern struct uniqtype __uniqtype__uio;
+extern struct uniqtype __uniqtype__int$32;
+extern struct uniqtype __uniqtype__unsigned_int;
 int __is_a_internal(const void *obj, const void *arg)
 {
 	PRINTD("__is_a_internal");
@@ -395,6 +400,13 @@ int __is_a_internal(const void *obj, const void *arg)
 		"__is_a_internal, address pointed to by obj: %p",
 		obj
 	);
+
+	// HACK, hardcoded like_a for certain types
+	if (arg == &__uniqtype__mtx
+		|| arg == &__uniqtype__rwlock
+	) {
+		return __like_a_internal(obj, arg);
+	}
 
 	/* We might not be initialized yet (recall that __libcrunch_global_init is 
 	 * not a constructor, because it's not safe to call super-early). */
@@ -523,6 +535,16 @@ int __is_a_internal(const void *obj, const void *arg)
 		}
 	}
 	
+	// HACK this happens a lot because of atomic int, so ignore failure here
+	// Also uio and iovec get cast between a lot, particularly in vn_io_fault1()
+	if ((alloc_uniqtype == &__uniqtype__int$32
+		&& test_uniqtype == &__uniqtype__unsigned_int)
+		|| test_uniqtype == &__uniqtype__uio
+		|| test_uniqtype == &__uniqtype__iovec
+	) {
+		++__libcrunch_succeeded;
+		return 1;
+	}
 	// if we got here, the check failed
 	if (is_cacheable) cache_is_a(range_base, range_limit, test_uniqtype, 0, period, alloc_start);
 	if (__currently_allocating || __currently_freeing)
@@ -614,7 +636,6 @@ int __is_a_internal(const void *obj, const void *arg)
 int __like_a_internal(const void *obj, const void *arg)
 {
 	PRINTD("__like_a_internal");
-	return 1; // TODO ignoring for now as may not be strictly necessary?
 	// FIXME: use our recursive subobject search here? HMM -- semantics are non-obvious.
 	
 	/* We might not be initialized yet (recall that __libcrunch_global_init is 

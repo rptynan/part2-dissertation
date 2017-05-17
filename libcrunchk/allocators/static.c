@@ -53,6 +53,7 @@ int __attribute__((section (".meta"))) make_sure_dot_meta_exists = 42;
  * This is done in offset_all_statics().
 */
 extern char etext;
+extern char edata;
 int magic_static_var_symbol = 42;
 int magic_static_func_symbol() {return 42;}
 
@@ -89,7 +90,9 @@ static int strcmp_private(s1, s2)
         return (*(const unsigned char *)s1 - *(const unsigned char *)(s2 - 1));
 }
 
-
+#ifndef _KERNEL
+	int mtxpool_sleep = 0;
+#endif
 static void offset_all_statics ()
 {
 	// abort if statics aren't linked in
@@ -101,10 +104,10 @@ static void offset_all_statics ()
 	// find offsets
 	ptrdiff_t dot_text_offset = 0;
 	ptrdiff_t dot_data_offset = 0;
+	ptrdiff_t dot_bss_offset = 0;
 	struct static_allocsite_entry *s = &statics[0];
 	do {
 		if (!s->name) continue;
-		if (dot_text_offset && dot_data_offset) break;
 		/* These should be positive offsets as we're adding to stuff to the
 		 * object */
 		if (strcmp_private(s->name, "magic_static_func_symbol") == 0) {
@@ -113,29 +116,48 @@ static void offset_all_statics ()
 		if (strcmp_private(s->name, "magic_static_var_symbol") == 0) {
 			dot_data_offset = (void *)&magic_static_var_symbol - s->entry.allocsite;
 		}
-	} while(s++ && (s->name || s->entry.allocsite || s->entry.uniqtype));
+		/* FIXME this is hack for bss, should do properly like two above */
+		if (strcmp_private(s->name, "mtxpool_sleep") == 0) {
+			dot_bss_offset = (void *)&mtxpool_sleep - s->entry.allocsite;
+		}
+	} while(s++ && (!dot_text_offset || !dot_data_offset || !dot_bss_offset));
+	printf("dot_text_offset: %p\n", dot_text_offset);
+	printf("dot_data_offset: %p\n", dot_data_offset);
+	printf("dot_bss_offset: %p\n", dot_bss_offset);
 
 	// apply offsets and insert into appropriate indices
 	s = &statics[0];
 	do {
-		ptrdiff_t offset = (s->entry.allocsite < &etext)
-			? dot_text_offset : dot_data_offset;
-		s->entry.allocsite += offset;
-		/* PRINTD("-----------"); */
-		/* PRINTD1("name: %s", s->name); */
-		/* PRINTD1("addr: %p", s->entry.allocsite); */
-		/* PRINTD1("in .text? %s", (s->entry.allocsite < &etext) ? "yes" : "no"); */
-		/* PRINTD1("actual addr: %p", s->entry.allocsite + offset); */
+		// FIXME comparing apparent allocsites with actual addresses
+		ptrdiff_t offset =
+			(s->entry.allocsite + dot_text_offset < &etext)
+			? dot_text_offset
+			: (s->entry.allocsite + dot_data_offset < &edata)
+				? dot_data_offset
+				: dot_bss_offset;
+		/* if (0xffffffff82ab0000 <= s->entry.allocsite + offset */
+		/* 	&& s->entry.allocsite + offset <= 0xffffffff82abffff */
+		/* ) { */
+		/* 	printf("-----------\n"); */
+		/* 	printf("name: %s\n", s->name); */
+		/* 	printf("apparent addr: %p\n", s->entry.allocsite); */
+		/* 	printf("in .text? %s\n", (s->entry.allocsite < &etext) ? "yes" : "no"); */
+		/* 	printf("offset appr addr: %p\n", s->entry.allocsite + offset); */
+		/* 	printf("&mtxpool_sleep: %p\n", &mtxpool_sleep); */
+		/* } */
 
 		pageindex_insert(
-			s->entry.allocsite,
+			/* s->entry.allocsite + offset, */
+			(s->entry.uniqtype->pos_maxoff < 4294967295 )  // < UINT_MAX
+				? s->entry.allocsite + s->entry.uniqtype->pos_maxoff
+				: s->entry.allocsite,
 			(s+1)->entry.allocsite + offset, // should be ok to do as last static is void
 			&__static_allocator
 		);
 
 		staticindex_insert(
 			s->entry.uniqtype,
-			s->entry.allocsite,
+			s->entry.allocsite + offset,
 			1
 		);
 	} while(s++ && (s->name || s->entry.allocsite || s->entry.uniqtype));

@@ -44,6 +44,7 @@ static inline struct big_allocation* pageindex_lookup(const void *begin) {
 		return NULL;
 	}
 	PAGEINDEX_UNLOCK;
+	PRINTD2("pageindex_lookup found range: %p -> %p", res->begin, res->end);
 	return res;
 }
 
