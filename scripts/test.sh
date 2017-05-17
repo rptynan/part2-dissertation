@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function listoids() {
-	sysctl -a debug.liballocs debug.libcrunch | cut -d ":" -f 1
+	sysctl -a debug.liballocs debug.libcrunch | grep -v splaying | cut -d ":" -f 1
 }
 
 function clearoids() {
@@ -28,7 +28,7 @@ function docputest() {
 }
 
 function dothreadstest() {
-	dotest "sysbench --test=threads --num-threads=4 --thread-locks=2 run"
+	dotest "sysbench --test=threads --num-threads=4 --thread-locks=2 --max-time=60s run"
 }
 
 function domutextest() {
