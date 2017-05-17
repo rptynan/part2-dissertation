@@ -1,0 +1,79 @@
+debug.liballocs.aborted_stack: 1989673 -> 34
+debug.liballocs.aborted_static: 0 -> 0
+debug.liballocs.aborted_unknown_storage: 6636837 -> 167
+debug.liballocs.hit_heap_case: 300743 -> 5
+debug.liballocs.hit_stack_case: 0 -> 0
+debug.liballocs.hit_static_case: 86183 -> 18
+debug.liballocs.aborted_unindexed_heap: 0 -> 0
+debug.liballocs.aborted_unrecognised_allocsite: 0 -> 0
+debug.libcrunch.begun: 7117545 -> 153
+debug.libcrunch.failed: 56016 -> 8
+debug.libcrunch.succeeded: 330135 -> 15
+debug.libcrunch.aborted_typestr: 123041 -> 4
+debug.libcrunch.is_a_hit_cache: 0 -> 0
+debug.libcrunch.created_invalid_pointer: 0 -> 0
+debug.libcrunch.checked_pointer_adjustments: 0 -> 0
+debug.libcrunch.primary_secondary_transitions: 0 -> 0
+debug.libcrunch.fault_handler_fixups: 0 -> 0
+debug.libcrunch.lazy_heap_type_assignment: 0 -> 0
+debug.libcrunch.failed_in_alloc: 0 -> 0
+debug.libcrunch.failed_liballocs_err: 6594213 -> 71
+debug.libcrunch.called_before_init: 0 -> 0
+debug.libcrunch.pageindex_entries: 776 -> 1
+debug.libcrunch.uniqtype_entries: 0 -> 0
+debug.libcrunch.malloc_entries: 776 -> 1
+debug.libcrunch.static_entries: 0 -> 0
+oids cleared!
+sysbench 0.4.12:  multi-threaded system evaluation benchmark
+
+Running the test with following options:
+Number of threads: 4
+
+Doing thread subsystem performance test
+Thread yields per test: 1000 Locks used: 2
+Threads started!
+Time limit exceeded, exiting...
+(last message repeated 3 times)
+Done.
+
+
+Test execution summary:
+    total time:                          60.1268s
+    total number of events:              1553
+    total time taken by event execution: 240.4358
+    per-request statistics:
+         min:                                 13.25ms
+         avg:                                154.82ms
+         max:                                535.94ms
+         approx.  95 percentile:             389.83ms
+
+Threads fairness:
+    events (avg/stddev):           388.2500/25.91
+    execution time (avg/stddev):   60.1090/0.01
+
+debug.liballocs.aborted_stack: 39239416
+debug.liballocs.aborted_static: 0
+debug.liballocs.aborted_unknown_storage: 83320088
+debug.liballocs.hit_heap_case: 519103
+debug.liballocs.hit_stack_case: 0
+debug.liballocs.hit_static_case: 792491
+debug.liballocs.aborted_unindexed_heap: 0
+debug.liballocs.aborted_unrecognised_allocsite: 0
+debug.libcrunch.begun: 85020063
+debug.libcrunch.failed: 800160
+debug.libcrunch.succeeded: 497465
+debug.libcrunch.aborted_typestr: 607365
+debug.libcrunch.is_a_hit_cache: 0
+debug.libcrunch.created_invalid_pointer: 0
+debug.libcrunch.checked_pointer_adjustments: 0
+debug.libcrunch.primary_secondary_transitions: 0
+debug.libcrunch.fault_handler_fixups: 0
+debug.libcrunch.lazy_heap_type_assignment: 0
+debug.libcrunch.failed_in_alloc: 0
+debug.libcrunch.failed_liballocs_err: 82864550
+debug.libcrunch.called_before_init: 0
+debug.libcrunch.splaying_on: 1
+debug.libcrunch.pageindex_entries: 391
+debug.libcrunch.uniqtype_entries: 0
+debug.libcrunch.malloc_entries: 361
+debug.libcrunch.static_entries: 0
